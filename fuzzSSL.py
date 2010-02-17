@@ -25,6 +25,7 @@ sLib.CreateMasterSecret(sDesc)
 sLib.CreateFinishedHash(sDesc)
 sLib.CreateKeyBlock(sDesc)
 sLib.SendSSLPacket(sDesc, sLib.sslStruct['cFinished'])
-#time.sleep(5)
+
+#sLib.SendCTPacket(sDesc, sLib.sslStruct['cHello'])
 
 

@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import os
 import sys
 import socket
 import sFunctions
@@ -14,6 +15,8 @@ import tlslite
 import base64
 from Crypto.Cipher import AES
 from array import *
+import hashlib
+from hashlib import *
 
 ###############################################################################
 #
@@ -87,29 +90,32 @@ class LibSSL:
 		self.sslStruct['chMessage'] 	=  chMessage
 		self.sslStruct['chLength'] 	=  chLength
 		self.sslStruct['chVersion'] 	=  chVersion
-		self.sslStruct['chGMT'] 	=  chGMT
-		self.sslStruct['cHelloRB']	=  cHelloRB
+		self.sslStruct['cHelloRB']	=  chGMT + cHelloRB
 		self.sslStruct['chSIDLength'] 	=  chSIDLength
 		self.sslStruct['chCipherLength']=  chCipherLength
 		self.sslStruct['chCipher'] 	=  chCipher
 		self.sslStruct['chCompression'] =  chCompression
 
+		os.system('rm -rf files')
+		os.system('mkdir files')
 
 		self.sslStruct['cHello'] = self.sslStruct['chMessage']      + \
 					   self.sslStruct['chLength']       + \
 					   self.sslStruct['chVersion']      + \
-	                                   self.sslStruct['chGMT']          + \
                                            self.sslStruct['cHelloRB']       + \
                                            self.sslStruct['chSIDLength']    + \
 					   self.sslStruct['chCipherLength'] + \
 					   self.sslStruct['chCipher']       + \
 					   self.sslStruct['chCompression']
 
-		if (self.debugFlag == 1):		
+		if (self.debugFlag == 1):	
+			pBanner("Creating ClientHello")
+			print "\nLength of ClientHello:" + \
+			str(len(self.sslStruct['cHello']))
+
 			HexStrDisplay(	"ClientHello Message Created", 
 					Str2HexStr(self.sslStruct['cHello']))
-
-
+			pBanner("Created ClientHello")
 
 	
 ###############################################################################
@@ -128,6 +134,7 @@ class LibSSL:
 #			None
 ###############################################################################
 	def ReadServerHello(self, socket):
+		pBanner("Reading ServerHello")
 		self.socket = socket
 		header = self.socket.recv(5)
 		shLen = HexStr2IntVal(header, 3, 4)
@@ -141,7 +148,8 @@ class LibSSL:
 			HexStrDisplay(	"ServerHello Message Received", 
 					Str2HexStr(self.sslStruct['sHello']))
 			HexStrDisplay(  "ServerHello Random Bytes",
-					Str2HexStr(self.sslStruct['sHelloRB']))		
+					Str2HexStr(self.sslStruct['sHelloRB']))	
+		pBanner("Read ServerHello")
 
 ###############################################################################
 #
@@ -159,25 +167,27 @@ class LibSSL:
 #			None
 ###############################################################################
 	def ReadServerCertificate(self, socket):
+		pBanner("Reading ServerCertificate")
 		self.socket = socket
 		header = self.socket.recv(5)
 		scLen = HexStr2IntVal(header, 3, 4)
 		self.sslStruct['scLen'] = scLen
 		sCertificate = self.socket.recv(scLen)
 		self.sslStruct['sCertificate'] = sCertificate[10:]
+		self.sslStruct['sCertificateCF'] = sCertificate
 
 		if (self.debugFlag == 1):
 			HexStrDisplay("Server Certificate", 
 				Str2HexStr(self.sslStruct['sCertificate']))
 
-		fobject = open("./servercrt.pem", 'w')
+		fobject = open("./files/servercrt.pem", 'w')
 		fobject.write("-----BEGIN CERTIFICATE-----\n")
 		output = base64.b64encode(self.sslStruct['sCertificate'])
 		fobject.write(output)
 		fobject.write("\n-----END CERTIFICATE-----\n")
 		fobject.close()
 
-		sCert = open("./servercrt.pem").read()
+		sCert = open("./files/servercrt.pem").read()
 		x509 = X509()
 		cert = x509.parse(sCert)
 
@@ -188,6 +198,7 @@ class LibSSL:
 		encData = cert.publicKey.encrypt(ckeArray)
 		encDataStr = encData.tostring()
 		self.sslStruct['encryptedPMKey'] = encDataStr
+		pBanner("Read ServerCertificate")
 
 ###############################################################################
 #
@@ -205,6 +216,7 @@ class LibSSL:
 #			None
 ###############################################################################
 	def ReadServerHelloDone(self, socket):
+		pBanner("Reading ServerHelloDone")
 		self.socket = socket
 		header = self.socket.recv(5)
 		sHelloDone = self.socket.recv(4)
@@ -213,6 +225,7 @@ class LibSSL:
 		if (self.debugFlag == 1):
 			HexStrDisplay("Server HelloDone", 
 				Str2HexStr(self.sslStruct['sHelloDone']))
+		pBanner("Read ServerHelloDone")
 
 ###############################################################################
 #
@@ -231,46 +244,52 @@ class LibSSL:
 ###############################################################################
 
 	def SendCTPacket(self, socket, hsMsg):
+		pBanner("Sending CT Packet")
 		self.socket = socket
 		recMsg = 	sslRecHeaderDeafult  + \
 				Pack2Bytes(len(hsMsg))
 	
 		totMsg = recMsg + hsMsg
+		
+		print "\nLength of HS Message: ", str(len(hsMsg))
+		print "\nLength of Total Message: ", str(len(totMsg))
+		HexStrDisplay("HS Message CT:", Str2HexStr(hsMsg))
+		HexStrDisplay("Total Message CT:", Str2HexStr(totMsg))
+
 		self.socket.send(totMsg)
+		pBanner("Sent CT Packet")
 
 	def SendSSLPacket(self, socket, hsMsg):
+			pBanner("Sending SSL Packet")
 			import M2Crypto
-			import md5
-			import sha
 			import socket
 			rec = hsMsg
 			recLen = len(hsMsg)
 
 			seqNum = 0
 			seqNumUnsignedLongLong = pack('>Q', seqNum)
+			iHash = pack('b', 22)
+			iHash1 = Pack2Bytes(recLen)
 
-			iHash = pack('h', 22)
-			iHash1 = (recLen & 0xff00) >> 8
-			iHash2 = (recLen & 0xff)
-	
-			m = md5.new()
+			m = md5()
 			m.update(self.sslStruct['wMacPtr'])
 			m.update(pad1MD5)
-			m.update(seqNumUnsignedLongLong)
-			m.update(str(iHash) + str(iHash1) + str(iHash2))
+			m.update(seqNumUnsignedLongLong + iHash + iHash1)
 			m.update(rec)
+			mInt = m.digest()
 	
-			m1 = md5.new()
+			m1 = md5()
 			m1.update(self.sslStruct['wMacPtr'])
 			m1.update(pad2MD5)
-			m1.update(m1.digest())
+			m1.update(mInt)
+			mFin = m1.digest()
 	
 			HexStrDisplay("Intermediate MAC", 
-						Str2HexStr(m.digest()))
+						Str2HexStr(mInt))
 	
-			HexStrDisplay("Final MAC", Str2HexStr(m1.digest()))
+			HexStrDisplay("Final MAC", Str2HexStr(mFin))
 	
-			self.sslStruct['recordPlusMAC'] = rec + m1.digest()
+			self.sslStruct['recordPlusMAC'] = rec + mFin
 			HexStrDisplay("Record + MAC", 
 				      Str2HexStr(self.sslStruct['recordPlusMAC']))
 	
@@ -283,8 +302,11 @@ class LibSSL:
 	
 			packLen = len(encryptedData)
 			self.sslStruct['encryptedRecordPlusMAC'] = sslRecHeaderDeafult + Pack2Bytes(packLen) + encryptedData
+
+			HexStrDisplay("Packet Sent", Str2HexStr(self.sslStruct['encryptedRecordPlusMAC']))
 		
 			self.socket.send(self.sslStruct['encryptedRecordPlusMAC'])
+			pBanner("Sent SSL Packet")
 
 ##############################################################################
 #
@@ -300,10 +322,11 @@ class LibSSL:
 #			None
 ###############################################################################
 	def CreateClientKeyExchange(self, socket):
+		pBanner("Creating ClientKeyExchange")
 		self.socket = socket
 		self.sslStruct['cCert'] = cCertMsg
 
-		self.sslStruct['ckeMessage'] = 	ckeMsgHdr + '\x00\x00\x80' + \
+		self.sslStruct['ckeMessage'] = 	ckeMsgHdr + '\x00\x00\x40' + \
 						self.sslStruct['encryptedPMKey']
 
 		if (self.debugFlag == 1):
@@ -313,7 +336,8 @@ class LibSSL:
 				Str2HexStr(self.sslStruct['encryptedPMKey']))
 			HexStrDisplay("Client ChangeCipherSpec Message", 
 				Str2HexStr(cssPkt))			
-		self.encrypted = 1			
+		self.encrypted = 0	
+		pBanner("Created ClientKeyExchange")
 
 ##############################################################################
 #
@@ -340,49 +364,54 @@ class LibSSL:
 #
 
 	def CreateMasterSecret(self, socket):
-		import md5
-		import sha
+		pBanner("Creating MasterSecret")
 		self.socket = socket
 
+		HexStrDisplay("ClientRandom:", Str2HexStr(self.sslStruct['cHelloRB']))
+		HexStrDisplay("ServerRandom:", Str2HexStr(self.sslStruct['sHelloRB']))
+		HexStrDisplay("ckePMKey:", Str2HexStr(ckePMKey))
 
-		s1 = sha.new()
-
+		s1 = sha1()
 		s1.update('A')
+		s1.update(ckePMKey)
 		s1.update(self.sslStruct['cHelloRB'])
 		s1.update(self.sslStruct['sHelloRB'])
-		s1.update(ckePMKey)
+		s1D = s1.digest()
 
-		HexStrDisplay("First SHA1 Hash", Str2HexStr(s1.digest()))
-		m1 = md5.new()
+		m1 = md5()
 		m1.update(ckePMKey)
-		m1.update(Str2HexStr(s1.digest()))
+		m1.update(s1D)
+		m1D = m1.digest()
 
-		s2 = sha.new()
+		s2 = sha1()
 		s2.update('BB')
+		s2.update(ckePMKey)
 		s2.update(self.sslStruct['cHelloRB'])
 		s2.update(self.sslStruct['sHelloRB'])
-		s2.update(ckePMKey)
+		s2D = s2.digest()
 
-		HexStrDisplay("Second SHA1 Hash", Str2HexStr(s2.digest()))
-		m2 = md5.new()
+		m2 = md5()
 		m2.update(ckePMKey)
-		m2.update(s2.digest())
-		
-		s3 = sha.new()
+		m2.update(s2D)
+		m2D = m2.digest()
+
+		s3 = sha1()
 		s3.update('CCC')
+		s3.update(ckePMKey)
 		s3.update(self.sslStruct['cHelloRB'])
 		s3.update(self.sslStruct['sHelloRB'])
-		s3.update(ckePMKey)
+		s3D = s3.digest()
 
-		HexStrDisplay("Third SHA1 Hash", Str2HexStr(s3.digest()))
-		m3 = md5.new()
+		m3 = md5()
 		m3.update(ckePMKey)
-		m3.update(s3.digest())
+		m3.update(s3D)
+		m3D = m3.digest()
 
-		self.sslStruct['masterSecret'] = m1.digest() + m2.digest() \
-						+ m3.digest()
+		self.sslStruct['masterSecret'] = m1D + m2D + m3D
 		HexStrDisplay("MasterSecret", 
 				Str2HexStr(self.sslStruct['masterSecret']))
+
+		pBanner("Created MasterSecret")
 
 
 ##############################################################################
@@ -411,51 +440,59 @@ class LibSSL:
 #			    pad1sha));
 #
 	def CreateFinishedHash(self, socket):
-		import md5
-		import sha
+		pBanner("Creating Finished Hash")
 	
+
+		HexStrDisplay("ClientHello", Str2HexStr(self.sslStruct['cHello']))
+		HexStrDisplay("ServerHello", Str2HexStr(self.sslStruct['sHello']))
+		HexStrDisplay("Server Certificate", Str2HexStr(self.sslStruct['sCertificateCF']))
+		HexStrDisplay("Server Hello Done", Str2HexStr(self.sslStruct['sHelloDone']))
+		HexStrDisplay("Client Key Exchange", Str2HexStr(self.sslStruct['ckeMessage']))
+		HexStrDisplay("Master Secret", Str2HexStr(self.sslStruct['masterSecret']))
+
 		self.socket = socket
 
-		m1 = md5.new()
+		m1 = md5()
 		m1.update(self.sslStruct['cHello'])
 		m1.update(self.sslStruct['sHello'])
-		m1.update(self.sslStruct['sCertificate'])
+		m1.update(self.sslStruct['sCertificateCF'])
 		m1.update(self.sslStruct['sHelloDone'])
 		m1.update(self.sslStruct['ckeMessage'])
-		m1.update("\x43\x4c\x4e\x54")
+		m1.update("CLNT")
 		m1.update(self.sslStruct['masterSecret'])
 		m1.update(pad1MD5)
-		
-		m2 = md5.new()
+
+	
+		m2 = md5()
 		m2.update(self.sslStruct['masterSecret'])
 		m2.update(pad2MD5)
 		m2.update(m1.digest())
 		md5Hash = m2.digest()
 
-		s1 = sha.new()
+		s1 = sha1()
 		s1.update(self.sslStruct['cHello'])
 		s1.update(self.sslStruct['sHello'])
-		s1.update(self.sslStruct['sCertificate'])
+		s1.update(self.sslStruct['sCertificateCF'])
 		s1.update(self.sslStruct['sHelloDone'])
 		s1.update(self.sslStruct['ckeMessage'])
-		s1.update("\x43\x4c\x4e\x54")
+		s1.update("CLNT")
 		s1.update(self.sslStruct['masterSecret'])
-		s1.update(pad1MD5)
+		s1.update(pad1SHA)
 		
-		s2 = sha.new()
+		s2 = sha1()
 		s2.update(self.sslStruct['masterSecret'])
-		s2.update(pad2MD5)
+		s2.update(pad2SHA)
 		s2.update(s1.digest())
 
 		shaHash = s2.digest()
 
-
 		HexStrDisplay("MD5 Hash", Str2HexStr(md5Hash))
 		HexStrDisplay("SHA Hash", Str2HexStr(shaHash))
 
-		self.sslStruct['cFinished'] = md5Hash + shaHash
+		self.sslStruct['cFinished'] = "\x14\x00\x00\x24" + md5Hash + shaHash
 		HexStrDisplay("ClientFinished Message", 
 			Str2HexStr(self.sslStruct['cFinished']))
+		pBanner("Created Finished Hash")
 
 ##############################################################################
 #
@@ -482,8 +519,7 @@ class LibSSL:
 #
 
 	def CreateKeyBlock(self, socket):
-		import md5
-		import sha
+		pBanner("Creating Key Block")
 		self.socket = socket
 
 		self.sslStruct['digLen'] = 16
@@ -499,27 +535,33 @@ class LibSSL:
 						2 * self.sslStruct['ivSize']
 		self.sslStruct['keyIter'] = 9
 		self.sslStruct['keyBlock'] = ""
-		s = sha.new()
-		m = md5.new()
+
+
 		for iter in range(0, self.sslStruct['keyIter']):
+			s = sha1()
+			m = md5()
+
 			s.update(chr( ord('A') + iter) * (iter + 1))
 			s.update(self.sslStruct['masterSecret'])
 			s.update(self.sslStruct['sHelloRB'])
-			s.update(chConstData)
+			s.update(self.sslStruct['cHelloRB'])
+			sInt = s.digest()
 
 			m.update(self.sslStruct['masterSecret'])
-			m.update(s.digest())
+			m.update(sInt)
+			mFin = m.digest()
 			self.sslStruct['keyBlock'] = 	self.sslStruct['keyBlock'] + \
-							m.digest()
+							mFin
+
 
 		HexStrDisplay("Key Block", Str2HexStr(self.sslStruct['keyBlock']))
 	
 		self.sslStruct['wMacPtr'] = self.sslStruct['keyBlock'][0:16]
 		self.sslStruct['rMacPtr'] = self.sslStruct['keyBlock'][16:32]
 		self.sslStruct['wKeyPtr'] = self.sslStruct['keyBlock'][32:48]
-		self.sslStruct['wKeyPtr'] = self.sslStruct['keyBlock'][48:64]
-		self.sslStruct['wIVPtr'] = self.sslStruct['keyBlock'][64:80]
-		self.sslStruct['rIVPtr'] = self.sslStruct['keyBlock'][80:96]
+		self.sslStruct['rKeyPtr'] = self.sslStruct['keyBlock'][48:64]
+		self.sslStruct['wIVPtr'] = self.sslStruct['keyBlock'][64:72]
+		self.sslStruct['rIVPtr'] = self.sslStruct['keyBlock'][72:80]
 
 
 		HexStrDisplay("wMacPtr", Str2HexStr(self.sslStruct['wMacPtr']))
@@ -528,5 +570,6 @@ class LibSSL:
 		HexStrDisplay("rKeyPtr", Str2HexStr(self.sslStruct['wKeyPtr']))
 		HexStrDisplay("wIVPtr", Str2HexStr(self.sslStruct['wIVPtr']))
 		HexStrDisplay("rIVPtr", Str2HexStr(self.sslStruct['rIVPtr']))
+		pBanner("Created Key Block")
 
 

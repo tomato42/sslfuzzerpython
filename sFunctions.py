@@ -147,3 +147,18 @@ def Pack2Bytes(integer):
 
 	return content
 
+###############################################################################
+#
+# pBanner --
+#
+#			Function to print banner
+#
+# Results:
+#			1. Takes a string as input and formats it as a banner
+#
+# Side Effects:
+#			None
+###############################################################################
+def pBanner(string):
+	print "\n################INFO: " + \
+	      string + " ##############\n"
