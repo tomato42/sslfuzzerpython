@@ -12,7 +12,7 @@ port = sys.argv[2]
 
 sLib = LibSSL(debugFlag = 1)
 
-clientHello = sLib.CreateClientHello()
+clientHello = sLib.CreateClientHello("\x01", "", "\x03\x00", chConstGMT, chConstData, "\x00", "\x00\x02", "\x00\x04", "\x01\x00")
 sDesc = sLib.TCPConnect(host, int(port))
 sLib.SendCTPacket(sDesc, sLib.sslStruct['cHello'])
 sLib.ReadServerHello(sDesc)
@@ -25,7 +25,6 @@ sLib.CreateMasterSecret(sDesc)
 sLib.CreateFinishedHash(sDesc)
 sLib.CreateKeyBlock(sDesc)
 sLib.SendSSLPacket(sDesc, sLib.sslStruct['cFinished'])
-
-#sLib.SendCTPacket(sDesc, sLib.sslStruct['cHello'])
-
-
+sLib.ReadCF(sDesc)
+sLib.SendRecordPacket(sDesc, "GET / HTTP/1.1\r\nContent-Length:0\r\n\r\n")
+sLib.ReadSSLPacket(sDesc)

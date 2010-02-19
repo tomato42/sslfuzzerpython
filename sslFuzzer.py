@@ -99,6 +99,16 @@ class LibSSL:
 		os.system('rm -rf files')
 		os.system('mkdir files')
 
+		self.sslStruct['cHello_len'] = len(self.sslStruct['chVersion'] + \
+						self.sslStruct['cHelloRB'] + \
+						self.sslStruct['chSIDLength'] + \
+						self.sslStruct['chCipherLength'] + \
+						self.sslStruct['chCipher'] + \
+						self.sslStruct['chCompression'])
+
+		if self.sslStruct['chLength'] == "":
+			self.sslStruct['chLength'] = Pack3Bytes(self.sslStruct['cHello_len'])
+
 		self.sslStruct['cHello'] = self.sslStruct['chMessage']      + \
 					   self.sslStruct['chLength']       + \
 					   self.sslStruct['chVersion']      + \
@@ -107,6 +117,9 @@ class LibSSL:
 					   self.sslStruct['chCipherLength'] + \
 					   self.sslStruct['chCipher']       + \
 					   self.sslStruct['chCompression']
+
+
+		HexStrDisplay("chLength", Str2HexStr(self.sslStruct['chLength']))
 
 		if (self.debugFlag == 1):	
 			pBanner("Creating ClientHello")
@@ -194,10 +207,6 @@ class LibSSL:
 		x509cc = X509CertChain([x509])
 		HexStrDisplay("Fingerprint",Str2HexStr(x509.getFingerprint()))
 		print "\nNumber of Certificates: " + str(x509cc.getNumCerts())
-		ckeArray = array ( 'B', ckePMKey)
-		encData = cert.publicKey.encrypt(ckeArray)
-		encDataStr = encData.tostring()
-		self.sslStruct['encryptedPMKey'] = encDataStr
 		pBanner("Read ServerCertificate")
 
 ###############################################################################
@@ -229,15 +238,14 @@ class LibSSL:
 
 ###############################################################################
 #
-# SendSSLPacket --
+# SendCT --
 #
-# 			Function to send a encrypted or cleartext ssl handshake
+# 			Function to send a cleartext ssl handshake
 #			message
 #
 # Results:
-#			1. If self.encrypted = 0, clear text handshake message
-#                          is sent
-#			2. else, encrypted handshake message is sent
+#			1. SSL cleartext record layer header is added
+#			2. clear text handshake message is sent
 #
 # Side Effects:
 #			None
@@ -259,13 +267,29 @@ class LibSSL:
 		self.socket.send(totMsg)
 		pBanner("Sent CT Packet")
 
+##############################################################################
+#
+# SendSSLPacket --
+#
+# 			Function to send an SSL handshake packet after adding
+#			record layer headers
+#
+# Results:
+#			1. Takes SSL Handshake message as input
+#			2. Adds SSL record layer headers to it
+#			3. Sends the packet to Server
+#
+# Side Effects:
+#			None
+###############################################################################
 	def SendSSLPacket(self, socket, hsMsg):
 			pBanner("Sending SSL Packet")
 			import M2Crypto
 			import socket
 			rec = hsMsg
 			recLen = len(hsMsg)
-
+			HexStrDisplay("Record Length", Str2HexStr(Pack3Bytes(recLen)))
+			HexStrDisplay("Record", Str2HexStr(rec))
 			seqNum = 0
 			seqNumUnsignedLongLong = pack('>Q', seqNum)
 			iHash = pack('b', 22)
@@ -301,12 +325,163 @@ class LibSSL:
 					Str2HexStr(encryptedData))
 	
 			packLen = len(encryptedData)
-			self.sslStruct['encryptedRecordPlusMAC'] = sslRecHeaderDeafult + Pack2Bytes(packLen) + encryptedData
+			self.sslStruct['encryptedRecordPlusMAC'] = sslRecHeaderDeafult + \
+					Pack2Bytes(packLen) + encryptedData
 
-			HexStrDisplay("Packet Sent", Str2HexStr(self.sslStruct['encryptedRecordPlusMAC']))
+			HexStrDisplay("Packet Sent", 
+			Str2HexStr(self.sslStruct['encryptedRecordPlusMAC']))
 		
-			self.socket.send(self.sslStruct['encryptedRecordPlusMAC'])
+			self.socket.send(
+				self.sslStruct['encryptedRecordPlusMAC'])
 			pBanner("Sent SSL Packet")
+
+##############################################################################
+#
+# SendRecordPacket --
+#
+# 			Function to send an SSL Application Data after adding
+#			record layer headers
+#
+# Results:
+#			1. Takes SSL record message as input
+#			2. Adds SSL record layer headers to it
+#			3. Sends the packet to Server
+#
+# Side Effects:
+#			None
+###############################################################################
+	def SendRecordPacket(self, socket, recMsg):
+			pBanner("Sending SSL Record Packet")
+			import M2Crypto
+			import socket
+			rec = recMsg
+			recLen = len(recMsg)
+			HexStrDisplay("Record Length", Str2HexStr(Pack3Bytes(recLen)))
+			HexStrDisplay("Record", Str2HexStr(rec))
+			seqNum = 0
+			seqNumUnsignedLongLong = pack('>Q', seqNum)
+			iHash = pack('b', 23)
+			iHash1 = Pack2Bytes(recLen)
+
+			m = md5()
+			m.update(self.sslStruct['wMacPtr'])
+			m.update(pad1MD5)
+			m.update(seqNumUnsignedLongLong + iHash + iHash1)
+			m.update(rec)
+			mInt = m.digest()
+	
+			m1 = md5()
+			m1.update(self.sslStruct['wMacPtr'])
+			m1.update(pad2MD5)
+			m1.update(mInt)
+			mFin = m1.digest()
+	
+			HexStrDisplay("Intermediate MAC", 
+						Str2HexStr(mInt))
+	
+			HexStrDisplay("Final MAC", Str2HexStr(mFin))
+	
+			self.sslStruct['recordPlusMAC'] = rec + mFin
+			HexStrDisplay("Record + MAC", 
+				      Str2HexStr(self.sslStruct['recordPlusMAC']))
+	
+			e = M2Crypto.RC4.RC4()
+			e.set_key(self.sslStruct['wKeyPtr'])
+			encryptedData = e.update(self.sslStruct['recordPlusMAC'])
+			
+			HexStrDisplay("Encrypted Record + MAC", 
+					Str2HexStr(encryptedData))
+	
+			packLen = len(encryptedData)
+			self.sslStruct['encryptedRecordPlusMAC'] = sslAppHeaderDefault + \
+					Pack2Bytes(packLen) + encryptedData
+
+			HexStrDisplay("Packet Sent", 
+			Str2HexStr(self.sslStruct['encryptedRecordPlusMAC']))
+		
+			self.socket.send(
+				self.sslStruct['encryptedRecordPlusMAC'])
+			pBanner("Sent SSL Record Packet")
+
+##############################################################################
+#
+# ReadCTPacket --
+#
+# 			Function to read cleartext response from server
+#
+# Results:
+#			1. Reads cleartext response from server
+#			3. Stores necessary values as part of sslStruct
+#
+# Side Effects:
+#			None
+###############################################################################
+	def ReadCTPacket(self, socket):
+			pBanner("Reading CT Packet")
+			socket = self.socket
+			header = self.socket.recv(5)
+			recLen = HexStr2IntVal(header, 3, 4)
+			data = self.socket.recv(recLen)
+			print str(data)
+			pBanner("Read CT Packet")			
+
+##############################################################################
+#
+# ReadSSLPacket --
+#
+# 			Function to read response from server
+#
+# Results:
+#			1. Reads response from server
+#			3. Stores necessary values as part of sslStruct
+#
+# Side Effects:
+#			None
+###############################################################################
+	def ReadSSLPacket(self, socket):
+			pBanner("Reading SSL Packet")
+			import M2Crypto
+			from M2Crypto import EVP
+			dummy_block =  ' ' * 8
+			socket = self.socket
+			header = self.socket.recv(5)
+			recLen = HexStr2IntVal(header, 3, 4)
+			data = self.socket.recv(recLen)
+			decrypt = EVP.Cipher('rc4', self.sslStruct['rKeyPtr'], '', M2Crypto.decrypt)
+			decryptedData = decrypt.update(data)
+			i = struct.unpack(">Q", decrypt.update(dummy_block))
+			print str(decryptedData[16:])
+#			HexStrDisplay("Output:", Str2HexStr(decryptedData))
+			pBanner("Read SSL Packet")			
+
+##############################################################################
+#
+# ReadCF --
+#
+# 			Function to read ClientFinished Message from server
+#
+# Results:
+#			1. Reads ClientFinished Message from server
+#			3. Stores necessary values as part of sslStruct
+#
+# Side Effects:
+#			None
+###############################################################################
+	def ReadCF(self, socket):
+			pBanner("Reading CFinished from server")
+			socket = self.socket
+			header = self.socket.recv(5)
+			CFLen = HexStr2IntVal(header, 3, 4)
+			if CFLen == 1:
+				print "\nINFO: Received Server Change Cipher Spec"
+				cssSer = self.socket.recv(1)
+			header = self.socket.recv(5)
+			CFLen = HexStr2IntVal(header, 3, 4)
+			CFMessage = self.socket.recv(CFLen)
+			if (CFMessage):
+				HexStrDisplay("\nINFO: Client Finished Read from Server",
+					Str2HexStr(CFMessage))
+			pBanner("Read CFinished from server")			
 
 ##############################################################################
 #
@@ -323,11 +498,22 @@ class LibSSL:
 ###############################################################################
 	def CreateClientKeyExchange(self, socket):
 		pBanner("Creating ClientKeyExchange")
-		self.socket = socket
-		self.sslStruct['cCert'] = cCertMsg
 
-		self.sslStruct['ckeMessage'] = 	ckeMsgHdr + '\x00\x00\x40' + \
-						self.sslStruct['encryptedPMKey']
+		sCert = open("./files/servercrt.pem").read()
+		x509 = X509()
+		cert = x509.parse(sCert)
+
+		x509cc = X509CertChain([x509])
+		ckeArray = array ( 'B', ckePMKey)
+		encData = cert.publicKey.encrypt(ckeArray)
+		encDataStr = encData.tostring()
+		self.sslStruct['encryptedPMKey'] = encDataStr
+		self.sslStruct['encryptedPMKey_len'] = len(self.sslStruct['encryptedPMKey'])
+
+
+		self.sslStruct['ckeMessage'] = 	ckeMsgHdr + \
+			Pack3Bytes(self.sslStruct['encryptedPMKey_len']) + \
+			self.sslStruct['encryptedPMKey']
 
 		if (self.debugFlag == 1):
 			HexStrDisplay("Client KeyExchange Message", 
@@ -367,8 +553,10 @@ class LibSSL:
 		pBanner("Creating MasterSecret")
 		self.socket = socket
 
-		HexStrDisplay("ClientRandom:", Str2HexStr(self.sslStruct['cHelloRB']))
-		HexStrDisplay("ServerRandom:", Str2HexStr(self.sslStruct['sHelloRB']))
+		HexStrDisplay("ClientRandom:", 
+				Str2HexStr(self.sslStruct['cHelloRB']))
+		HexStrDisplay("ServerRandom:", 
+				Str2HexStr(self.sslStruct['sHelloRB']))
 		HexStrDisplay("ckePMKey:", Str2HexStr(ckePMKey))
 
 		s1 = sha1()
@@ -445,10 +633,14 @@ class LibSSL:
 
 		HexStrDisplay("ClientHello", Str2HexStr(self.sslStruct['cHello']))
 		HexStrDisplay("ServerHello", Str2HexStr(self.sslStruct['sHello']))
-		HexStrDisplay("Server Certificate", Str2HexStr(self.sslStruct['sCertificateCF']))
-		HexStrDisplay("Server Hello Done", Str2HexStr(self.sslStruct['sHelloDone']))
-		HexStrDisplay("Client Key Exchange", Str2HexStr(self.sslStruct['ckeMessage']))
-		HexStrDisplay("Master Secret", Str2HexStr(self.sslStruct['masterSecret']))
+		HexStrDisplay("Server Certificate", 
+				Str2HexStr(self.sslStruct['sCertificateCF']))
+		HexStrDisplay("Server Hello Done", 
+				Str2HexStr(self.sslStruct['sHelloDone']))
+		HexStrDisplay("Client Key Exchange", 
+				Str2HexStr(self.sslStruct['ckeMessage']))
+		HexStrDisplay("Master Secret", 
+				Str2HexStr(self.sslStruct['masterSecret']))
 
 		self.socket = socket
 
@@ -489,7 +681,8 @@ class LibSSL:
 		HexStrDisplay("MD5 Hash", Str2HexStr(md5Hash))
 		HexStrDisplay("SHA Hash", Str2HexStr(shaHash))
 
-		self.sslStruct['cFinished'] = "\x14\x00\x00\x24" + md5Hash + shaHash
+		self.sslStruct['cFinished'] = "\x14\x00\x00\x24" + \
+					md5Hash + shaHash
 		HexStrDisplay("ClientFinished Message", 
 			Str2HexStr(self.sslStruct['cFinished']))
 		pBanner("Created Finished Hash")
@@ -567,7 +760,7 @@ class LibSSL:
 		HexStrDisplay("wMacPtr", Str2HexStr(self.sslStruct['wMacPtr']))
 		HexStrDisplay("rMacPtr", Str2HexStr(self.sslStruct['rMacPtr']))
 		HexStrDisplay("wKeyPtr", Str2HexStr(self.sslStruct['wKeyPtr']))
-		HexStrDisplay("rKeyPtr", Str2HexStr(self.sslStruct['wKeyPtr']))
+		HexStrDisplay("rKeyPtr", Str2HexStr(self.sslStruct['rKeyPtr']))
 		HexStrDisplay("wIVPtr", Str2HexStr(self.sslStruct['wIVPtr']))
 		HexStrDisplay("rIVPtr", Str2HexStr(self.sslStruct['rIVPtr']))
 		pBanner("Created Key Block")

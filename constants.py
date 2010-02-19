@@ -1,6 +1,8 @@
 sslRecVersionDefault = '\x03\x00'
 sslRecHeaderDeafult = '\x16' + sslRecVersionDefault
 
+sslAppHeaderDefault = '\x17' + sslRecVersionDefault
+
 chConstMessage = '\x01'
 chConstLength = '\x00\x00\x29'
 chConstVersion = '\x03\x00'
