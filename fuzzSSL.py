@@ -5,6 +5,7 @@ from sslFuzzer import *
 from tlslite.api import *
 import hashlib
 import time
+import sys
 
 
 host = sys.argv[1]
@@ -25,6 +26,6 @@ sLib.CreateMasterSecret(sDesc)
 sLib.CreateFinishedHash(sDesc)
 sLib.CreateKeyBlock(sDesc)
 sLib.SendSSLPacket(sDesc, sLib.sslStruct['cFinished'])
-sLib.ReadCF(sDesc)
-sLib.SendRecordPacket(sDesc, "GET / HTTP/1.1\r\nContent-Length:0\r\n\r\n")
+sLib.ReadSF(sDesc)
+sLib.SendRecordPacket(sDesc, "GET / HTTP/1.0\r\nContent-Length:0\r\n\r\n", 1)
 sLib.ReadSSLPacket(sDesc)

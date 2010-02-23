@@ -284,11 +284,10 @@ class LibSSL:
 ###############################################################################
 	def SendSSLPacket(self, socket, hsMsg):
 			pBanner("Sending SSL Packet")
-			import M2Crypto
 			import socket
 			rec = hsMsg
 			recLen = len(hsMsg)
-			HexStrDisplay("Record Length", Str2HexStr(Pack3Bytes(recLen)))
+			HexStrDisplay("Record Length", Str2HexStr(Pack2Bytes(recLen)))
 			HexStrDisplay("Record", Str2HexStr(rec))
 			seqNum = 0
 			seqNumUnsignedLongLong = pack('>Q', seqNum)
@@ -317,9 +316,10 @@ class LibSSL:
 			HexStrDisplay("Record + MAC", 
 				      Str2HexStr(self.sslStruct['recordPlusMAC']))
 	
-			e = M2Crypto.RC4.RC4()
-			e.set_key(self.sslStruct['wKeyPtr'])
-			encryptedData = e.update(self.sslStruct['recordPlusMAC'])
+			global e
+
+			e = tlslite.utils.OpenSSL_RC4.new(self.sslStruct['wKeyPtr'])
+			encryptedData = e.encrypt(self.sslStruct['recordPlusMAC'])
 			
 			HexStrDisplay("Encrypted Record + MAC", 
 					Str2HexStr(encryptedData))
@@ -350,15 +350,14 @@ class LibSSL:
 # Side Effects:
 #			None
 ###############################################################################
-	def SendRecordPacket(self, socket, recMsg):
+	def SendRecordPacket(self, socket, recMsg, seq):
 			pBanner("Sending SSL Record Packet")
-			import M2Crypto
 			import socket
 			rec = recMsg
 			recLen = len(recMsg)
-			HexStrDisplay("Record Length", Str2HexStr(Pack3Bytes(recLen)))
+			HexStrDisplay("Record Length", Str2HexStr(Pack2Bytes(recLen)))
 			HexStrDisplay("Record", Str2HexStr(rec))
-			seqNum = 0
+			seqNum = seq
 			seqNumUnsignedLongLong = pack('>Q', seqNum)
 			iHash = pack('b', 23)
 			iHash1 = Pack2Bytes(recLen)
@@ -385,9 +384,10 @@ class LibSSL:
 			HexStrDisplay("Record + MAC", 
 				      Str2HexStr(self.sslStruct['recordPlusMAC']))
 	
-			e = M2Crypto.RC4.RC4()
-			e.set_key(self.sslStruct['wKeyPtr'])
-			encryptedData = e.update(self.sslStruct['recordPlusMAC'])
+			HexStrDisplay("wKeyPtr", 
+				      Str2HexStr(self.sslStruct['wKeyPtr']))
+			
+			encryptedData = e.encrypt(self.sslStruct['recordPlusMAC'])
 			
 			HexStrDisplay("Encrypted Record + MAC", 
 					Str2HexStr(encryptedData))
@@ -440,35 +440,32 @@ class LibSSL:
 ###############################################################################
 	def ReadSSLPacket(self, socket):
 			pBanner("Reading SSL Packet")
-			import M2Crypto
-			from M2Crypto import EVP
-			dummy_block =  ' ' * 8
-			socket = self.socket
 			header = self.socket.recv(5)
+			HexStrDisplay("data", Str2HexStr(header))
 			recLen = HexStr2IntVal(header, 3, 4)
+			print "Record Length: " + str(recLen)
 			data = self.socket.recv(recLen)
-			decrypt = EVP.Cipher('rc4', self.sslStruct['rKeyPtr'], '', M2Crypto.decrypt)
-			decryptedData = decrypt.update(data)
-			i = struct.unpack(">Q", decrypt.update(dummy_block))
-			print str(decryptedData[16:])
-#			HexStrDisplay("Output:", Str2HexStr(decryptedData))
+
+			decrypt = f.decrypt(data)
+
+			print decrypt
 			pBanner("Read SSL Packet")			
 
 ##############################################################################
 #
-# ReadCF --
+# ReadSF --
 #
-# 			Function to read ClientFinished Message from server
+# 			Function to read ServerFinished Message from server
 #
 # Results:
-#			1. Reads ClientFinished Message from server
+#			1. Reads ChangeCipherSpec and ServerFinished Message from server
 #			3. Stores necessary values as part of sslStruct
 #
 # Side Effects:
 #			None
 ###############################################################################
-	def ReadCF(self, socket):
-			pBanner("Reading CFinished from server")
+	def ReadSF(self, socket):
+			pBanner("Reading ServerFinished from server")
 			socket = self.socket
 			header = self.socket.recv(5)
 			CFLen = HexStr2IntVal(header, 3, 4)
@@ -477,11 +474,18 @@ class LibSSL:
 				cssSer = self.socket.recv(1)
 			header = self.socket.recv(5)
 			CFLen = HexStr2IntVal(header, 3, 4)
+			print "\nINFO: Received ServerFinished Message of Length: " + str(CFLen)
 			CFMessage = self.socket.recv(CFLen)
 			if (CFMessage):
-				HexStrDisplay("\nINFO: Client Finished Read from Server",
+				HexStrDisplay("\nINFO: Finished Read from Server",
 					Str2HexStr(CFMessage))
-			pBanner("Read CFinished from server")			
+			global f
+			f = tlslite.utils.OpenSSL_RC4.new(self.sslStruct['rKeyPtr'])
+			decryptedCF = f.decrypt(CFMessage)
+
+			HexStrDisplay("\nINFO: Decrypted Finished Message from Server", 
+					Str2HexStr(decryptedCF))
+			pBanner("Read ServerFinished from server")			
 
 ##############################################################################
 #
