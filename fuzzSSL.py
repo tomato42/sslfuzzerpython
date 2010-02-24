@@ -1,11 +1,6 @@
-import sslFuzzer
-import sFunctions
-from sFunctions import *
 from sslFuzzer import *
+from sFunctions import *
 from tlslite.api import *
-import hashlib
-import time
-import sys
 
 
 host = sys.argv[1]
@@ -25,7 +20,13 @@ sDesc.send(cssPkt)
 sLib.CreateMasterSecret(sDesc)
 sLib.CreateFinishedHash(sDesc)
 sLib.CreateKeyBlock(sDesc)
-sLib.SendSSLPacket(sDesc, sLib.sslStruct['cFinished'])
+sLib.SendSSLPacket(sDesc, sLib.sslStruct['cFinished'], 0, 0)
 sLib.ReadSF(sDesc)
-sLib.SendRecordPacket(sDesc, "GET / HTTP/1.0\r\nContent-Length:0\r\n\r\n", 1)
-sLib.ReadSSLPacket(sDesc)
+
+#req1 = "GET /folder?dcPath=ha-datacenter HTTP/1.1\r\nAuthorization: Basic cm9vdDpjYSRoYzB3\r\nContent-Length:0\r\n\r\n"
+#print "Sending Request:\n" + Str2HexStr(req1) + "\n"
+
+#sLib.SendRecordPacket(sDesc, sLib.sslStruct['cHello'], 1)
+#sLib.ReadSSLPacket(sDesc)
+
+sLib.SendSSLPacket(sDesc, sLib.sslStruct['cHello'], 1, 1)

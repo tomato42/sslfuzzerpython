@@ -3,15 +3,12 @@
 import os
 import sys
 import socket
-import sFunctions
 import string
-import struct
 from struct import *
 from sFunctions import *
-import constants
 from constants import *
-from tlslite.api import *
 import tlslite
+from tlslite.api import *
 import base64
 from Crypto.Cipher import AES
 from array import *
@@ -282,14 +279,14 @@ class LibSSL:
 # Side Effects:
 #			None
 ###############################################################################
-	def SendSSLPacket(self, socket, hsMsg):
+	def SendSSLPacket(self, socket, hsMsg, seq, renegotiate):
 			pBanner("Sending SSL Packet")
 			import socket
 			rec = hsMsg
 			recLen = len(hsMsg)
 			HexStrDisplay("Record Length", Str2HexStr(Pack2Bytes(recLen)))
 			HexStrDisplay("Record", Str2HexStr(rec))
-			seqNum = 0
+			seqNum = seq
 			seqNumUnsignedLongLong = pack('>Q', seqNum)
 			iHash = pack('b', 22)
 			iHash1 = Pack2Bytes(recLen)
@@ -316,10 +313,17 @@ class LibSSL:
 			HexStrDisplay("Record + MAC", 
 				      Str2HexStr(self.sslStruct['recordPlusMAC']))
 	
-			global e
+			if renegotiate == 1:
+				global g 
+				g = tlslite.utils.OpenSSL_RC4.new(self.sslStruct['wKeyPtr'])
+				encryptedData = e.encrypt(self.sslStruct['recordPlusMAC'])
 
-			e = tlslite.utils.OpenSSL_RC4.new(self.sslStruct['wKeyPtr'])
-			encryptedData = e.encrypt(self.sslStruct['recordPlusMAC'])
+			if renegotiate == 0:
+				global e
+
+				e = tlslite.utils.OpenSSL_RC4.new(self.sslStruct['wKeyPtr'])
+				encryptedData = e.encrypt(self.sslStruct['recordPlusMAC'])
+				
 			
 			HexStrDisplay("Encrypted Record + MAC", 
 					Str2HexStr(encryptedData))
