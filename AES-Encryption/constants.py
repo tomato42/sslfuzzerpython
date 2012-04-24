@@ -1,3 +1,30 @@
+I_LIMIT=4294967295
+H_LIMIT=65535
+B_LIMIT=254
+S_LIMIT=255
+R_LIMIT=15
+POPULATE_RANDOM_SUCCESS=-150
+POPULATE_RANDOM_FAILURE=-151
+INFINITE=-152
+CONFIG_VALID=-153
+CONFIG_INVALID=-154
+SEND_INV_SUCCESS="send_invalid_packet_succeeded"
+SEND_INV_FAIL="send_invalid_packet_failed"
+RECV_SUCCESS="recv_succeeded"
+RECV_FAIL="recv_failed"
+SEND_SUCCESS="send_packet_succeeded"
+SEND_FAIL="send_packed_failed"
+
+DEFAULT_CH_CIPHER_SUITES="\x00\x35"
+DEFAULT_CH_CLIENT_RANDOM="\x44\x44\x44\x44\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66"
+
+SSL_REC_VER_DEF=3
+SSL_BEG_STR=22
+sslRecVersionDefault = '\x03\x00'
+sslRecHeaderDeafult = '\x16' + sslRecVersionDefault
+
+sslAppHeaderDefault = '\x17' + sslRecVersionDefault
+
 sslRecVersionDefault = '\x03\x00'
 sslRecHeaderDeafult = '\x16' + sslRecVersionDefault
 

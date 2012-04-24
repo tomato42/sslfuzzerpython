@@ -14,6 +14,7 @@ from Crypto.Cipher import AES
 from array import *
 import hashlib
 from hashlib import *
+import copy
 
 ###############################################################################
 #
@@ -40,10 +41,16 @@ class LibSSL:
 #
 # Constructor
 #
-	def __init__(self, debugFlag = 0):
+	def __init__(self, debugFlag = 0, comm = None):
 		self.sslStruct = {}
+		self.comm = comm
+		self.config_hash = copy.copy(comm.config.config_hash)
 		self.clientHello = None
 		self.debugFlag = debugFlag
+		self.socket = None
+		self.sslHandshake = None
+		self.sslRecord = None
+		self.opn = 0
 
 ###############################################################################
 #
@@ -59,11 +66,84 @@ class LibSSL:
 # Side Effects:
 #			None
 ###############################################################################
-	def TCPConnect(self, host, port):
-		self.socketDesc = socket.socket(socket.AF_INET, 
+	def TCPConnect(self):
+		self.socket = socket.socket(socket.AF_INET, 
 					socket.SOCK_STREAM)
-		self.socketDesc.connect((host, port))
-		return self.socketDesc
+		self.socket.connect((self.comm.host, self.comm.port))
+
+
+	#
+	# get all keys of the hash
+	#
+	def get_keys(self):
+		return self.config_hash.keys()
+
+	#
+	# get all values in the hash
+	#
+	def get_values(self):
+		return self.config_hash.values()
+
+	#
+	# payload elements in the config_hash are of the form:
+	#     
+	#       <key> = <value> : <type>
+        #
+        #         where <key> is the name of the field
+        #               <value> is the value of the field
+        #                     -> <value> can only be a 
+	#			 at this time
+        #               <type> is the format in which
+	#		      <value> should be packed
+	#
+	# NOTE: Keeping it as a hash to make it simple
+	#
+
+	#
+	# get value corresponding to a key
+	#
+	def get_value(self, key):
+		value = None
+		try:
+			value = self.config_hash[key].rsplit(":", 1)[0].strip()
+		except:
+			value = None
+		return value
+
+	#
+	# get type corresponding to a key
+	#
+	def get_type(self, key):
+		tp = None
+		try:
+			tp = self.config_hash[key].rsplit(":", 1)[1].strip()
+		except:
+			tp = None
+		return tp
+
+	#
+	# set value for a key
+	#
+	def set_value(self, key, value):
+		self.config_hash[key] = value
+
+	#
+	# get length of value of a key
+	#
+	def get_len(self, key):
+		ln = 0
+		try:
+			ln = len(self.config_hash[key].rsplit(":", 1)[0].strip())
+		except:
+			ln = None
+		return ln
+
+	def get_random_string(self, num_bytes):
+		word = ''
+		for i in range(num_bytes):
+        		word += random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')
+		return word
+
 
 ###############################################################################
 #
@@ -77,47 +157,93 @@ class LibSSL:
 # Side Effects:
 #			None
 ###############################################################################
-	def CreateClientHello(self, chMessage = chConstMessage, 
-                         chLength=chConstLength, chVersion = chConstVersion, 
-                         chGMT=chConstGMT, cHelloRB=chConstData, 
-			 chSIDLength=chConstSIDLength, 
-                         chCipherLength=chConstCipherLength, 
-                         chCipher=chConstCipher,
-			 chCompression=chConstCompression):
-		self.sslStruct['chMessage'] 	=  chMessage
-		self.sslStruct['chLength'] 	=  chLength
-		self.sslStruct['chVersion'] 	=  chVersion
-		self.sslStruct['cHelloRB']	=  chGMT + cHelloRB
-		self.sslStruct['chSIDLength'] 	=  chSIDLength
-		self.sslStruct['chCipherLength']=  chCipherLength
-		self.sslStruct['chCipher'] 	=  chCipher
-		self.sslStruct['chCompression'] =  chCompression
+	def CreateClientHello(self):
 
-		os.system('rm -rf files')
-		os.system('mkdir files')
+		if self.get_value("client_hello_hs_cipher_suites") == "DECIDE":
+			setting = "%s:S" % (DEFAULT_CH_CIPHER_SUITES)
+			self.set_value("client_hello_hs_cipher_suites", 
+				setting)
 
-		self.sslStruct['cHello_len'] = len(self.sslStruct['chVersion'] + \
-						self.sslStruct['cHelloRB'] + \
-						self.sslStruct['chSIDLength'] + \
-						self.sslStruct['chCipherLength'] + \
-						self.sslStruct['chCipher'] + \
-						self.sslStruct['chCompression'])
+			setting = "%d:>H" % (len(DEFAULT_CH_CIPHER_SUITES))
+			self.set_value("client_hello_hs_cipher_suites_len", 
+				setting)
+		else:
+			setting = "%d:>H" % (len(self.get_value("client_hello_hs_cipher_suites")))
+			self.set_value("client_hello_hs_cipher_suite_len", setting)
 
-		if self.sslStruct['chLength'] == "":
-			self.sslStruct['chLength'] = Pack3Bytes(self.sslStruct['cHello_len'])
+		#
+		# Handle client random
+		#
+		if self.get_value("client_hello_hs_client_random") == "DECIDE":
+			setting = "%s:S" % (DEFAULT_CH_CLIENT_RANDOM)
+			self.set_value("client_hello_hs_client_random", setting)
 
-		self.sslStruct['cHello'] = self.sslStruct['chMessage']      + \
-					   self.sslStruct['chLength']       + \
-					   self.sslStruct['chVersion']      + \
-                                           self.sslStruct['cHelloRB']       + \
-                                           self.sslStruct['chSIDLength']    + \
-					   self.sslStruct['chCipherLength'] + \
-					   self.sslStruct['chCipher']       + \
-					   self.sslStruct['chCompression']
+		self.sslStruct['cHelloRB'] = self.get_value("client_hello_hs_client_random")
 
+		#
+		# Handle compression methods
+		#
+		if self.get_value("client_hello_hs_compression_methods") == "DECIDE":
+			setting = pack('H', 1) + ":H"
+			self.set_value("client_hello_hs_compression_methods", setting)
+		
+		#
+		# Length of handshake part = 
+		# 	Length of handshake ssl version (H) +
+		#	Length of client random (32 bytes) +
+		#	Length of client sid (B) +
+		#	Length of cipher_suites_length (H) +
+		#	Length of cipher_suites (variable) + 
+		#	Length of compression_methods (variable)
+		#
+		if self.get_value("client_hello_hs_length") == "DECIDE":
+			self.client_hello_hs_length = calcsize('>HBH') + 32 + \
+				int(self.get_value("client_hello_hs_cipher_suites_len")) + \
+				2
+		else:
+			self.client_hello_hs_length = \
+				self.get_value("client_hello_hs_length")
 
-		HexStrDisplay("chLength", Str2HexStr(self.sslStruct['chLength']))
+		setting = pack('>B', 0) + pack('>H', self.client_hello_hs_length)
+		self.set_value("client_hello_hs_length", "%s:>H" % 
+			(setting))
 
+		if self.get_value("client_hello_record_length") == "DECIDE":
+			self.client_hello_record_length = self.client_hello_hs_length + \
+				4
+		else:
+			self.client_hello_record_length = self.get_value("client_hello_record_length")
+
+		self.set_value("client_hello_record_length", "%d:>H" % \
+			(self.client_hello_record_length))
+
+		if self.sslRecord == None:
+			self.sslRecord = ""
+		if self.sslHandshake == None:
+			self.sslHandshake = ""
+		self.sslStruct['cHelloRB'] = self.get_value("client_hello_hs_client_random")
+
+	        for key in self.get_keys():
+                	if "client_hello_hs" in key:
+	                        value = self.get_value(key)
+        	                tp = self.get_type(key)
+				print value
+
+        	                #
+        	                # packed_value = pack(value) in the form of int
+        	                #                       or if that fails, value
+        	                #
+	                        try:
+        	                        packed_value = pack('%s' % (tp), int(value))
+        	                except ValueError:
+        	                        packed_value = value
+
+        	                #
+        	                # Add packed value
+        	                #       
+        	                self.sslHandshake = self.sslHandshake + str(packed_value)
+
+		self.sslStruct['cHello'] = self.sslHandshake
 		if (self.debugFlag == 1):	
 			pBanner("Creating ClientHello")
 			print "\nLength of ClientHello:" + \
@@ -126,6 +252,8 @@ class LibSSL:
 			HexStrDisplay(	"ClientHello Message Created", 
 					Str2HexStr(self.sslStruct['cHello']))
 			pBanner("Created ClientHello")
+
+
 
 	
 ###############################################################################
@@ -143,11 +271,13 @@ class LibSSL:
 # Side Effects:
 #			None
 ###############################################################################
-	def ReadServerHello(self, socket):
+	def ReadServerHello(self):
 		pBanner("Reading ServerHello")
-		self.socket = socket
 		header = self.socket.recv(5)
+		
 		shLen = HexStr2IntVal(header, 3, 4)
+		if shLen == 2:
+			self.opn = 1
 		self.sslStruct['shLen'] = shLen
 		sHello = self.socket.recv(shLen)
 
@@ -176,10 +306,13 @@ class LibSSL:
 # Side Effects:
 #			None
 ###############################################################################
-	def ReadServerCertificate(self, socket):
+	def ReadServerCertificate(self):
 		pBanner("Reading ServerCertificate")
-		self.socket = socket
+		
 		header = self.socket.recv(5)
+		if len(header) == 0:
+			self.opn = 1
+			return 0
 		scLen = HexStr2IntVal(header, 3, 4)
 		self.sslStruct['scLen'] = scLen
 		sCertificate = self.socket.recv(scLen)
@@ -208,6 +341,35 @@ class LibSSL:
 
 ###############################################################################
 #
+# read_server_key_exchange --
+#
+# 			Function to read a Server Key Exchange Message 
+#			sent by SSL Server
+#
+# Results:
+#			1. Reads ServerCertificate Message sent by server 
+#			2. Interprets its details
+#			3. Stores necessary values as part of sslStruct
+#
+# Side Effects:
+#			None
+###############################################################################
+	def ReadServerKeyExchange(self):
+		pBanner("Reading Server Key Exchange")
+		header = self.socket.recv(5)
+		if len(header) == 0:
+			self.opn = 1
+			return 0
+		scLen = HexStr2IntVal(header, 3, 4)
+		self.sslStruct['skeLen'] = scLen
+		ske = self.socket.recv(scLen)
+		self.sslStruct['ske'] = ske
+
+		HexStrDisplay("Server Key Exchange",Str2HexStr(ske))
+		pBanner("Read Server Key Exchange")
+
+###############################################################################
+#
 # ReadServerHelloDone --
 #
 # 			Function to read a ServerHelloDone 
@@ -221,10 +383,13 @@ class LibSSL:
 # Side Effects:
 #			None
 ###############################################################################
-	def ReadServerHelloDone(self, socket):
+	def ReadServerHelloDone(self):
 		pBanner("Reading ServerHelloDone")
-		self.socket = socket
+		
 		header = self.socket.recv(5)
+		if len(header) == 0:
+			self.opn = 1
+			return 0
 		sHelloDone = self.socket.recv(4)
 		self.sslStruct['sHelloDone'] = sHelloDone
 
@@ -248,20 +413,20 @@ class LibSSL:
 #			None
 ###############################################################################
 
-	def SendCTPacket(self, socket, hsMsg):
+	def SendCTPacket(self):
 		pBanner("Sending CT Packet")
-		self.socket = socket
-		recMsg = 	sslRecHeaderDeafult  + \
-				Pack2Bytes(len(hsMsg))
-	
-		totMsg = recMsg + hsMsg
 		
-		print "\nLength of HS Message: ", str(len(hsMsg))
-		print "\nLength of Total Message: ", str(len(totMsg))
-		HexStrDisplay("HS Message CT:", Str2HexStr(hsMsg))
-		HexStrDisplay("Total Message CT:", Str2HexStr(totMsg))
+		recMsg = 	sslRecHeaderDeafult  + \
+				Pack2Bytes(len(self.sslHandshake))
+	
+		self.sslRecord = recMsg + self.sslHandshake
+		
+		print "\nLength of HS Message: ", str(len(self.sslHandshake))
+		print "\nLength of Total Message: ", str(len(self.sslRecord))
+		HexStrDisplay("HS Message CT:", Str2HexStr(self.sslHandshake))
+		HexStrDisplay("Total Message CT:", Str2HexStr(self.sslRecord))
 
-		self.socket.send(totMsg)
+		self.socket.send(self.sslRecord)
 		pBanner("Sent CT Packet")
 
 ##############################################################################
@@ -279,7 +444,7 @@ class LibSSL:
 # Side Effects:
 #			None
 ###############################################################################
-	def SendSSLPacket(self, socket, hsMsg, seq, renegotiate):
+	def SendSSLPacket(self, hsMsg, seq, renegotiate):
 			pBanner("Sending SSL Packet")
 			import socket
 			import struct
@@ -367,7 +532,7 @@ class LibSSL:
 # Side Effects:
 #			None
 ###############################################################################
-	def SendRecordPacket(self, socket, recMsg, seq):
+	def SendRecordPacket(self, recMsg, seq):
 			pBanner("Sending SSL Record Packet")
 			import struct
 			import socket
@@ -447,7 +612,7 @@ class LibSSL:
 # Side Effects:
 #			None
 ###############################################################################
-	def ReadCTPacket(self, socket):
+	def ReadCTPacket(self):
 			pBanner("Reading CT Packet")
 			socket = self.socket
 			header = self.socket.recv(5)
@@ -469,7 +634,7 @@ class LibSSL:
 # Side Effects:
 #			None
 ###############################################################################
-	def ReadSSLPacket(self, socket):
+	def ReadSSLPacket(self):
 			pBanner("Reading SSL Packet")
 			header = self.socket.recv(5)
 			recLen = HexStr2IntVal(header, 3, 4)
@@ -499,7 +664,7 @@ class LibSSL:
 # Side Effects:
 #			None
 ###############################################################################
-	def ReadSF(self, socket):
+	def ReadSF(self):
 			pBanner("Reading ServerFinished from server")
 			socket = self.socket
 			header = self.socket.recv(5)
@@ -539,7 +704,7 @@ class LibSSL:
 # Side Effects:
 #			None
 ###############################################################################
-	def CreateClientKeyExchange(self, socket):
+	def CreateClientKeyExchange(self):
 		pBanner("Creating ClientKeyExchange")
 
 		sCert = open("./files/servercrt.pem").read()
@@ -565,7 +730,8 @@ class LibSSL:
 				Str2HexStr(self.sslStruct['encryptedPMKey']))
 			HexStrDisplay("Client ChangeCipherSpec Message", 
 				Str2HexStr(cssPkt))			
-		self.encrypted = 0	
+		self.encrypted = 0
+		self.sslHandshake = self.sslStruct['ckeMessage']	
 		pBanner("Created ClientKeyExchange")
 
 ##############################################################################
@@ -592,9 +758,9 @@ class LibSSL:
 #
 #
 
-	def CreateMasterSecret(self, socket):
+	def CreateMasterSecret(self):
 		pBanner("Creating MasterSecret")
-		self.socket = socket
+		
 
 		HexStrDisplay("ClientRandom:", 
 				Str2HexStr(self.sslStruct['cHelloRB']))
@@ -670,7 +836,7 @@ class LibSSL:
 #			    SHA(handshake_messages + Sender + master_secret + 
 #			    pad1sha));
 #
-	def CreateFinishedHash(self, socket):
+	def CreateFinishedHash(self):
 		pBanner("Creating Finished Hash")
 	
 
@@ -685,7 +851,7 @@ class LibSSL:
 		HexStrDisplay("Master Secret", 
 				Str2HexStr(self.sslStruct['masterSecret']))
 
-		self.socket = socket
+		
 
 		m1 = md5()
 		m1.update(self.sslStruct['cHello'])
@@ -728,6 +894,7 @@ class LibSSL:
 					md5Hash + shaHash
 		HexStrDisplay("ClientFinished Message", 
 			Str2HexStr(self.sslStruct['cFinished']))
+
 		pBanner("Created Finished Hash")
 
 ##############################################################################
@@ -754,9 +921,9 @@ class LibSSL:
 #		  ClientHello.random)) + [...];
 #
 
-	def CreateKeyBlock(self, socket):
+	def CreateKeyBlock(self):
 		pBanner("Creating Key Block")
-		self.socket = socket
+		
 
 		self.sslStruct['digLen'] = 16
 		self.sslStruct['keyBits'] = 128
