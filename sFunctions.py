@@ -74,7 +74,7 @@ def RevString(string):
 ###############################################################################
 def HexStr2IntVal(string, startPos, endPos):
 		content = string[endPos]+string[startPos]
-		return unpack('h', content)[0]
+		return unpack('H', content)[0]
 
 ###############################################################################
 #

@@ -158,18 +158,29 @@ class LibSSL:
 # Side Effects:
 #			None
 ###############################################################################
-	def CreateClientHello(self):
-
-				
+	def CreateClientHello(self, cipher = None):
 		if self.comm.config.get_value("client_hello_hs_cipher_suites") == "DECIDE":
-			setting = "%s:S" % (DEFAULT_CH_CIPHER_SUITES)
-			self.set_value("client_hello_hs_cipher_suites", 
-				setting)
+	                if cipher != None:
+	                        setting = "%s:>H" % (cipher)
+        	                self.set_value("client_hello_hs_cipher_suites",
+                	                setting)
+                        	setting = "%d:>H" % (2)
+	                        self.set_value("client_hello_hs_cipher_suites_len",
+        	                        setting)
+			else:
+				setting = "%s:S" % (DEFAULT_CH_CIPHER_SUITES)
+				self.set_value("client_hello_hs_cipher_suites", 
+					setting)
 
 			if self.comm.config.get_value("client_hello_hs_cipher_suites_len") == "DECIDE":
-				setting = "%d:>H" % (len(DEFAULT_CH_CIPHER_SUITES))
-				self.set_value("client_hello_hs_cipher_suites_len",
-					setting)
+				if cipher != None:
+	                                setting = "%d:>H" % (2)
+	                                self.set_value("client_hello_hs_cipher_suites_len",
+        	                                setting)
+				else:
+					setting = "%d:>H" % (len(DEFAULT_CH_CIPHER_SUITES))
+					self.set_value("client_hello_hs_cipher_suites_len",
+						setting)
 		else:
 			if self.comm.config.get_value("client_hello_hs_cipher_suites_len") == "DECIDE":
 				setting = "%d:>H" % (len(self.get_value("client_hello_hs_cipher_suites")))
@@ -260,8 +271,6 @@ class LibSSL:
 			pBanner("Created ClientHello")
 
 
-
-	
 ###############################################################################
 #
 # ReadServerHello --
@@ -674,14 +683,22 @@ class LibSSL:
 			header = self.socket.recv(5)
 			recLen = HexStr2IntVal(header, 3, 4)
 
-			data = self.socket.recv(recLen)
-			HexStrDisplay("Encrypted Data", Str2HexStr(data))
+			try:
+				data = self.socket.recv(recLen)
+			except:
+				self.opn = 1
+				return
+
+			if self.debugFlag == 1:
+				HexStrDisplay("Encrypted Data", Str2HexStr(data))
 			from Crypto.Cipher import AES
 			global i
 			i = AES.new( self.sslStruct['rKeyPtr'], AES.MODE_CBC, self.sslStruct['rIVPtr'] )
 			decryptedCF = i.decrypt(data)
 
 			self.sslStruct['rIVPtr'] = data[recLen - 16: recLen]
+			self.decryptedData = decryptedCF
+
 			if self.debugFlag == 1:
 				print "\nPlainText Data:\n" + decryptedCF + "\n"
 				HexStrDisplay("DecryptedData", Str2HexStr(decryptedCF))

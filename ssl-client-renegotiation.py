@@ -79,7 +79,7 @@ sLib = LibSSL(debugFlag = 1, comm = common)
 populate_random_numbers(common, sLib)
 
 sLib.TCPConnect()
-sLib.CreateClientHello(cipher=None)
+sLib.CreateClientHello()
 sLib.SendCTPacket()
 sLib.ReadServerHello()
 if sLib.opn == 1:
@@ -114,21 +114,9 @@ sLib.ReadSF()
 HexStrDisplay("WIV ", Str2HexStr(sLib.sslStruct['wIVPtr']))
 HexStrDisplay("RIV ", Str2HexStr(sLib.sslStruct['rIVPtr']))
 
-
-xml = '<?xml version="1.0" encoding="utf-8" ?><CIM CIMVERSION="2.0" DTDVERSION="2.0"><MESSAGE ID="4711" PROTOCOLVERSION="1.0"><SIMPLEREQ><IMETHODCALL NAME="EnumerateInstanceNames"><LOCALNAMESPACEPATH><NAMESPACE NAME="root"></NAMESPACE><NAMESPACE NAME="cimv2"></NAMESPACE></LOCALNAMESPACEPATH><IPARAMVALUE NAME="ClassName"><CLASSNAME NAME="CIM_Account"/></IPARAMVALUE></IMETHODCALL></SIMPLEREQ></MESSAGE></CIM>'
-
-req1 = "POST / HTTP/1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1.1\r\nAuthorization: Basic cm9vdDpjYSRoYzB3\r\nContent-Length:10\r\n\r\n" + xml
-
-print req1
-HexStrDisplay("Sending Request", Str2HexStr(req1))
-sLib.SendRecordPacket(req1, 1)
-HexStrDisplay("WIV ", Str2HexStr(sLib.sslStruct['wIVPtr']))
-HexStrDisplay("RIV ", Str2HexStr(sLib.sslStruct['rIVPtr']))
+sLib.SendSSLPacket(sLib.sslStruct['cHello'], 1, 1)
 sLib.ReadSSLPacket()
-HexStrDisplay("WIV ", Str2HexStr(sLib.sslStruct['wIVPtr']))
-HexStrDisplay("RIV ", Str2HexStr(sLib.sslStruct['rIVPtr']))
-sLib.ReadSSLPacket()
-HexStrDisplay("WIV ", Str2HexStr(sLib.sslStruct['wIVPtr']))
-HexStrDisplay("RIV ", Str2HexStr(sLib.sslStruct['rIVPtr']))
+if sLib.decryptedData[0] == "\x02":
+	logger.toboth("Server does not support unsafe legacy re-negotiation")
 
-#sLib.SendSSLPacket(sDesc, sLib.sslStruct['cHello'], 1, 1)
+sys.exit(1)

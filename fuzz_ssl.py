@@ -78,16 +78,45 @@ common = common(logger, host, port, config)
 sLib = LibSSL(debugFlag = 0, comm = common)
 populate_random_numbers(common, sLib)
 
-for cipher in range(0, 157):
-	sLib = LibSSL(debugFlag = 0, comm = common)
-	sLib.TCPConnect()
-	sLib.CreateClientHello(cipher)
+
+sLib.TCPConnect()
+
+while (1):
+	populate_random_numbers(common, sLib)
+	sLib.CreateClientHello()
 	sLib.SendCTPacket()
+	if sLib.opn == 1:
+		logger.tofile("Re-initializing TCP connection")
+		sLib = LibSSL(debugFlag = 0, comm = common)
+		sLib.TCPConnect()
+		continue
 	sLib.ReadServerHello()
 	if sLib.opn == 1:
-		logger.tofile("Server does not accept %s cipher" \
-			%(cipherSuiteList[cipher]))
-	else:
-		logger.toboth("Server accepts %s cipher" % \
-			(cipherSuiteList[cipher]))
-	
+		logger.tofile("Server did not respond properly")
+		continue
+
+	sLib.ReadServerCertificate()
+	if sLib.opn == 1:
+		logger.tofile("Server did not respond properly")
+		continue
+
+	sLib.ReadServerHelloDone()
+	if sLib.opn == 1:
+		logger.tofile("Server did not respond properly")
+		continue
+
+	sLib.CreateClientKeyExchange()
+	sLib.SendCTPacket()
+	sLib.socket.send(cssPkt)
+	if sLib.opn == 1:
+		logger.tofile("Server did not respond properly")
+		continue
+
+	sLib.CreateMasterSecret()
+	sLib.CreateFinishedHash()
+	sLib.CreateKeyBlock()
+	sLib.SendSSLPacket(sLib.sslStruct['cFinished'], 0, 0)
+	sLib.ReadSF()
+
+
+
