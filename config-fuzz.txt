@@ -1,0 +1,11 @@
+client_hello_record_ctype -> RANDOM:B
+client_hello_record_version -> RANDOM:H
+client_hello_record_length -> DECIDE:H
+client_hello_hs_ctype -> RANDOM:B
+client_hello_hs_length -> DECIDE:B
+client_hello_hs_version -> RANDOM:H
+client_hello_hs_client_random -> RANDOM:S
+client_hello_hs_sid_len -> RANDOM:B
+client_hello_hs_cipher_suites_len -> DECIDE:H
+client_hello_hs_cipher_suites -> RANDOM:S
+client_hello_hs_compression_methods -> DECIDE:H

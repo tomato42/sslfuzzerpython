@@ -27,12 +27,13 @@ def populate_random_numbers(comm, libSSL):
 				r = libSSL.get_random_string(S_LIMIT)
 				setting = "%s:%s" % (r, tp_orig)
 				libSSL.set_value(key, setting)
-			elif re.match("^.*I") or re.match("^.*H") or re.match("^.*B"):
+			elif re.match("^.*I", tp) or re.match("^.*H", tp) \
+					or re.match("^.*B", tp):
 				rand_limit = int(tp[:-1])
 				r = random.randrange(0, rand_limit)
 				setting = "%s:%s" % (r, tp_orig)
 				libSSL.set_value(key, setting)
-			elif re.match("^.*S"):
+			elif re.match("^.*S", tp):
 				rand_limit = int(tp[:-1])
 				r = libSSL.get_random_string(rand_limit)
 				setting = "%s:%s" % (r, tp_orig)
