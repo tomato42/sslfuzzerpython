@@ -14,14 +14,15 @@ def usage():
 --port=|-p <port number> \r\n \
 --config|-c <config file> \r\n \
 --log|-l <log file> \r\n \
+--ca|-a <CA File + cert file in PEM format> \r\n \
 "
 
-host = port = test_case = rng = value = seq = sof = config_file = log_file = comm = None
+host = port = test_case = rng = value = seq = sof = config_file = log_file = comm = ca_file = None
 spaces = "                 "
 
 try:
-	opts, args = getopt.getopt(sys.argv[1:], "ho:p:c:l:f", 
-		["help", "host=", "port=", "config=", "log=", "startonfail="])
+	opts, args = getopt.getopt(sys.argv[1:], "ho:p:c:l:a:f", 
+		["help", "host=", "port=", "config=", "log=", "ca=", "startonfail="])
 except getopt.GetoptError, err:
         print str(err) # will print something like "option -a not recognized"
         usage()
@@ -39,6 +40,8 @@ for o, a in opts:
 		config_file = a
 	elif o in ("-l", "--log"):
 		log_file = a
+	elif o in ("-a", "--ca"):
+		ca_file = a
 	elif o in ("-f", "--startonfail"):
 		sof = a
 	else:
@@ -74,7 +77,8 @@ if config.valid_lines == 0:
 	logger.toboth("No valid lines in config file")
 	sys.exit(1)
 
-common = common(logger, host, port, config)
+common = common(logger, host, port, config, ca=ca_file)
+print common.ca
 sLib = LibSSL(debugFlag = 1, comm = common)
 populate_random_numbers(common, sLib)
 

@@ -295,10 +295,22 @@ class LibSSL:
 			self.opn = 1
 			return 		
 		shLen = HexStr2IntVal(header, 3, 4)
+
 		if shLen == 2:
 			self.opn = 1
+
+		sHello = ""
+		#
+		# Added 
+		#		
+		if shLen > 500:
+			header = self.socket.recv(4)
+			shLen = HexStr2IntVal(header, 1, 3)
+			sHello = header
+		#
+
 		self.sslStruct['shLen'] = shLen
-		sHello = self.socket.recv(shLen)
+		sHello = sHello + self.socket.recv(shLen)
 
 		self.sslStruct['sHello'] = sHello
 		self.sslStruct['sHelloRB'] = sHello[6:32+6]
@@ -329,11 +341,22 @@ class LibSSL:
 		if self.debugFlag == 1:
 			pBanner("Reading ServerCertificate")
 		
-		header = self.socket.recv(5)
-		if len(header) == 0:
-			self.opn = 1
-			return
-		scLen = HexStr2IntVal(header, 3, 4)
+		header = self.socket.recv(1)
+		packet_type = ord(header[0])
+		packet_type_h = header[0]
+		if packet_type == 22:
+			header = self.socket.recv(4)
+			if len(header) == 0:
+				self.opn = 1
+				return
+			scLen = HexStr2IntVal(header, 2, 3)
+		else:
+			header = self.socket.recv(3)
+			if len(header) == 0:
+				self.opn = 1
+				return
+			scLen = HexStr2IntVal(header, 1, 2)
+
 		self.sslStruct['scLen'] = scLen
 		sCertificate = self.socket.recv(scLen)
 		self.sslStruct['sCertificate'] = sCertificate[10:]
@@ -342,6 +365,8 @@ class LibSSL:
 		if (self.debugFlag == 1):
 			HexStrDisplay("Server Certificate", 
 				Str2HexStr(self.sslStruct['sCertificate']))
+			HexStrDisplay("Server Certificate CF", 
+				Str2HexStr(self.sslStruct['sCertificateCF']))
 
 		fobject = open("./files/servercrt.pem", 'w')
 		fobject.write("-----BEGIN CERTIFICATE-----\n")
@@ -352,7 +377,11 @@ class LibSSL:
 
 		sCert = open("./files/servercrt.pem").read()
 		x509 = X509()
-		cert = x509.parse(sCert)
+		try:
+			cert = x509.parse(sCert)
+		except:
+			print "\r\nCertificate chain not complete, exiting"
+			self.opn = 1
 
 		x509cc = X509CertChain([x509])
 		if self.debugFlag == 1:
