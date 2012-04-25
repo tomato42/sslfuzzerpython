@@ -42,10 +42,10 @@ class LibSSL:
 #
 # Constructor
 #
-	def __init__(self, debugFlag = 0, comm = None):
+	def __init__(self, debugFlag = 0, config_obj_list = None, comm = None):
 		self.sslStruct = {}
 		self.comm = comm
-		self.config_hash = copy.copy(comm.config.config_hash)
+		self.config_obj_list = config_obj_list
 		self.clientHello = None
 		self.debugFlag = debugFlag
 		self.socket = None
@@ -105,10 +105,13 @@ class LibSSL:
 	#
 	def get_value(self, key):
 		value = None
-		try:
-			value = self.config_hash[key].rsplit(":", 1)[0].strip()
-		except:
-			value = None
+		for iter1 in self.config_obj_list:
+			if iter1.key == key:
+				try:
+					value = iter1.value
+					break					
+				except:
+					value = None
 		return value
 
 	#
@@ -116,27 +119,42 @@ class LibSSL:
 	#
 	def get_type(self, key):
 		tp = None
-		try:
-			tp = self.config_hash[key].rsplit(":", 1)[1].strip()
-		except:
-			tp = None
+		for iter1 in self.config_obj_list:
+			if iter1.key == key:
+				try:
+					tp = iter1.tp
+					break					
+				except:
+					tp = None
 		return tp
-
 	#
 	# set value for a key
 	#
 	def set_value(self, key, value):
-		self.config_hash[key] = value
+		for iter1 in self.config_obj_list:
+			if iter1.key == key:
+				iter1.value = value
+				break
+
+	#
+	# set type for a key
+	#
+	def set_type(self, key, tp):
+		for iter1 in self.config_obj_list:
+			if iter1.key == key:
+				iter1.tp = tp
+				break
+		
 
 	#
 	# get length of value of a key
 	#
 	def get_len(self, key):
-		ln = 0
-		try:
-			ln = len(self.config_hash[key].rsplit(":", 1)[0].strip())
-		except:
-			ln = None
+		ln = None
+		for iter1 in self.config_obj_list:
+			if iter1.key == key:
+				ln = len(iter1.value)
+				break
 		return ln
 
 	def get_random_string(self, num_bytes):
@@ -144,7 +162,6 @@ class LibSSL:
 		for i in range(num_bytes):
         		word += random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz')
 		return word
-
 
 ###############################################################################
 #
@@ -161,37 +178,42 @@ class LibSSL:
 	def CreateClientHello(self, cipher = None):
 		if self.comm.config.get_value("client_hello_hs_cipher_suites") == "DECIDE":
 	                if cipher != None:
-	                        setting = "%s:>H" % (cipher)
         	                self.set_value("client_hello_hs_cipher_suites",
-                	                setting)
-                        	setting = "%d:>H" % (2)
-	                        self.set_value("client_hello_hs_cipher_suites_len",
-        	                        setting)
+                	                cipher)
+				self.set_type("client_hello_hs_cipher_suites", ">H")
+
+	                        self.set_value("client_hello_hs_cipher_suites_len", 2)
+				self.set_type("client_hello_hs_cipher_suites_len", ">H")
 			else:
-				setting = "%s:S" % (DEFAULT_CH_CIPHER_SUITES)
 				self.set_value("client_hello_hs_cipher_suites", 
-					setting)
+					DEFAULT_CH_CIPHER_SUITES)
+				self.set_type("client_hello_hs_cipher_suites", ">H")
+
+	                        self.set_value("client_hello_hs_cipher_suites_len", 2)
+				self.set_type("client_hello_hs_cipher_suites_len", ">H")
 
 			if self.comm.config.get_value("client_hello_hs_cipher_suites_len") == "DECIDE":
 				if cipher != None:
-	                                setting = "%d:>H" % (2)
-	                                self.set_value("client_hello_hs_cipher_suites_len",
-        	                                setting)
+	                                self.set_value("client_hello_hs_cipher_suites_len", 2)
+					self.set_type("client_hello_hs_cipher_suites_len", ">H")
 				else:
-					setting = "%d:>H" % (len(DEFAULT_CH_CIPHER_SUITES))
 					self.set_value("client_hello_hs_cipher_suites_len",
-						setting)
+						len(DEFAULT_CH_CIPHER_SUITES))
+					self.set_type("client_hello_hs_cipher_suites_len", ">H")
+
 		else:
 			if self.comm.config.get_value("client_hello_hs_cipher_suites_len") == "DECIDE":
 				setting = "%d:>H" % (len(self.get_value("client_hello_hs_cipher_suites")))
-				self.set_value("client_hello_hs_cipher_suites_len", setting)
+				self.set_value("client_hello_hs_cipher_suites_len", 
+					len(self.get_value("client_hello_hs_cipher_suites")))
+				self.set_type("client_hello_hs_cipher_suites_len", ">H")
 
 		#
 		# Handle client random
 		#
 		if self.comm.config.get_value("client_hello_hs_client_random") == "DECIDE":
-			setting = "%s:S" % (DEFAULT_CH_CLIENT_RANDOM)
-			self.set_value("client_hello_hs_client_random", setting)
+			self.set_value("client_hello_hs_client_random", DEFAULT_CH_CLIENT_RANDOM)
+			self.set_type("client_hello_hs_client_random", "S")
 
 		self.sslStruct['cHelloRB'] = self.get_value("client_hello_hs_client_random")
 
@@ -199,8 +221,9 @@ class LibSSL:
 		# Handle compression methods
 		#
 		if self.comm.config.get_value("client_hello_hs_compression_methods") == "DECIDE":
-			setting = pack('H', 1) + ":H"
+			setting = pack('H', 1)
 			self.set_value("client_hello_hs_compression_methods", setting)
+			self.set_type("client_hello_hs_compression_methods", "H")
 		
 		#
 		# Length of handshake part = 
@@ -215,16 +238,15 @@ class LibSSL:
 			self.client_hello_hs_length = calcsize('>HBH') + 32 + \
 				int(self.get_value("client_hello_hs_cipher_suites_len")) + \
 				2
-			setting = "%d:>H" % (self.client_hello_hs_length)
 			self.set_value("client_hello_hs_length",
-				setting)
+				self.client_hello_hs_length)
+			self.set_type("client_hello_hs_length", ">H")
 		else:
 			self.client_hello_hs_length = \
 				self.get_value("client_hello_hs_length")
 
-		setting = pack('>B', 0) + pack('>H', self.client_hello_hs_length)
-		self.set_value("client_hello_hs_length", "%s:>H" % 
-			(setting))
+		self.set_value("client_hello_hs_length", self.client_hello_hs_length)
+		self.set_type("client_hello_hs_length", ">H")
 
 		if self.comm.config.get_value("client_hello_record_length") == "DECIDE":
 			self.client_hello_record_length = self.client_hello_hs_length + \
@@ -232,8 +254,8 @@ class LibSSL:
 		else:
 			self.client_hello_record_length = self.get_value("client_hello_record_length")
 
-		self.set_value("client_hello_record_length", "%d:>H" % \
-			(self.client_hello_record_length))
+		self.set_value("client_hello_record_length", self.client_hello_record_length)
+		self.set_type("client_hello_record_length", ">H")
 
 		if self.sslRecord == None:
 			self.sslRecord = ""
@@ -241,17 +263,20 @@ class LibSSL:
 			self.sslHandshake = ""
 		self.sslStruct['cHelloRB'] = self.get_value("client_hello_hs_client_random")
 
-	        for key in self.get_keys():
-                	if "client_hello_hs" in key:
-	                        value = self.get_value(key)
-        	                tp = self.get_type(key)
+		for iter1 in self.config_obj_list:
+                	if "client_hello_hs" in iter1.key:
+	                        value = iter1.value
+        	                tp = iter1.tp
 
         	                #
         	                # packed_value = pack(value) in the form of int
         	                #                       or if that fails, value
         	                #
 	                        try:
-        	                        packed_value = pack('%s' % (tp), int(value))
+					if "client_hello_hs_length" in iter1.key:
+						packed_value = pack('>B', 0) + pack('>H', self.client_hello_hs_length)
+					else:        
+						packed_value = pack('%s' % (tp), int(value))
         	                except ValueError:
         	                        packed_value = value
 
@@ -269,7 +294,6 @@ class LibSSL:
 			HexStrDisplay(	"ClientHello Message Created", 
 					Str2HexStr(self.sslStruct['cHello']))
 			pBanner("Created ClientHello")
-
 
 ###############################################################################
 #
@@ -751,6 +775,8 @@ class LibSSL:
 				pBanner("Reading ServerFinished from server")
 			socket = self.socket
 			header = self.socket.recv(5)
+			for iter1 in header:
+				print hex(ord(iter1))
 			CFLen = HexStr2IntVal(header, 3, 4)
 			if CFLen == 1:
 				if self.debugFlag == 1:

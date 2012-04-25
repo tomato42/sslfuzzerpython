@@ -75,13 +75,14 @@ if config.valid_lines == 0:
 	sys.exit(1)
 
 common = common(logger, host, port, config)
-sLib = LibSSL(debugFlag = 0, comm = common)
+ssl_config_obj_list = copy.deepcopy(config.config_obj_list)
+sLib = LibSSL(debugFlag = 0, config_obj_list = ssl_config_obj_list, comm = common)
 populate_random_numbers(common, sLib)
 
 for cipher in range(0, 157):
-	sLib = LibSSL(debugFlag = 0, comm = common)
+	sLib = LibSSL(debugFlag = 0, config_obj_list = ssl_config_obj_list, comm = common)
 	sLib.TCPConnect()
-	sLib.CreateClientHello(cipher)
+	sLib.CreateClientHello(cipher = cipher)
 	sLib.SendCTPacket()
 	sLib.ReadServerHello()
 	if sLib.opn == 1:

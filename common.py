@@ -1,9 +1,9 @@
 class common:
-	def __init__(self, logger = None, host = None, port = None, config = None, ssl_config_hash = None, ca = None):
+	def __init__(self, logger = None, host = None, port = None, config = None, config_obj_list = None, ca = None):
 		self.logger = logger
 		self.host = host
 		self.port = port
 		self.config = config
-		self.ssl_config_hash = ssl_config_hash
+		self.config_obj_list = config_obj_list
 		self.ca = ca
 

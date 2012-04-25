@@ -78,7 +78,6 @@ if config.valid_lines == 0:
 	sys.exit(1)
 
 common = common(logger, host, port, config, ca=ca_file)
-print common.ca
 sLib = LibSSL(debugFlag = 1, comm = common)
 populate_random_numbers(common, sLib)
 

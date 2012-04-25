@@ -9,34 +9,26 @@ from constants import *
 # with values wherever there are RANDOM numbers required
 #
 def populate_random_numbers(comm, libSSL):
-	for key in comm.config.get_keys():
-		value = comm.config.get_value(key)
-		tp_orig = comm.config.get_type(key)
-		if (tp_orig[0] == "<") or (tp_orig[0] == ">"):
-			tp = tp_orig[1:]
+	for iter1 in comm.config.config_obj_list:
+		key = iter1.key
+		value = iter1.value
+		tp_orig = iter1.tp
+		if tp_orig == "NA":
+			continue
 		else:
-			tp = tp_orig
-		if (value == "RANDOM"):
-			if (tp_orig == "I") or (tp == "H") or (tp == "B"):
-				rand_limit = eval(tp + '_LIMIT')
-				r = random.randrange(0, rand_limit)
-				setting = "%s:%s" % (r, tp_orig)
-				libSSL.set_value(key, setting)
-			elif tp == "S":
-				rand_limit = eval(tp + '_LIMIT')
-				r = libSSL.get_random_string(S_LIMIT)
-				setting = "%s:%s" % (r, tp_orig)
-				libSSL.set_value(key, setting)
-			elif re.match("^.*I", tp) or re.match("^.*H", tp) \
-					or re.match("^.*B", tp):
-				rand_limit = int(tp[:-1])
-				r = random.randrange(0, rand_limit)
-				setting = "%s:%s" % (r, tp_orig)
-				libSSL.set_value(key, setting)
-			elif re.match("^.*S", tp):
-				rand_limit = int(tp[:-1])
-				r = libSSL.get_random_string(rand_limit)
-				setting = "%s:%s" % (r, tp_orig)
-				libSSL.set_value(key, setting)
+			if len(tp_orig) > 1:
+				tp = tp_orig[1]
+			else:
+				tp = tp_orig
 
+			if (value == "RANDOM"):
+				rand_limit = eval(tp + '_LIMIT')
 
+				if (tp == "I") or (tp == "H") or (tp == "B"):
+					r = random.randrange(0, rand_limit)
+					libSSL.set_value(key, r)
+					libSSL.set_type(key, tp_orig)
+				elif tp == "S":
+					r = libSSL.get_random_string(S_LIMIT)
+					libSSL.set_value(key, r)
+					libSSL.set_type(key, tp_orig)
