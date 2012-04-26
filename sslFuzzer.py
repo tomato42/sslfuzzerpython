@@ -374,15 +374,20 @@ class LibSSL:
 				self.opn = 1
 				return
 			scLen = HexStr2IntVal(header, 2, 3)
+			self.sslStruct['scLen'] = scLen
+			sCertificate = self.socket.recv(scLen)
 		else:
 			header = self.socket.recv(3)
 			if len(header) == 0:
 				self.opn = 1
 				return
 			scLen = HexStr2IntVal(header, 1, 2)
+			self.sslStruct['scLen'] = scLen
 
-		self.sslStruct['scLen'] = scLen
-		sCertificate = self.socket.recv(scLen)
+			packet_extra = packet_type_h + header
+			sCertificate = self.socket.recv(scLen)
+			sCertificate = packet_extra + sCertificate
+			
 		self.sslStruct['sCertificate'] = sCertificate[10:]
 		self.sslStruct['sCertificateCF'] = sCertificate
 
@@ -401,11 +406,7 @@ class LibSSL:
 
 		sCert = open("./files/servercrt.pem").read()
 		x509 = X509()
-		try:
-			cert = x509.parse(sCert)
-		except:
-			print "\r\nCertificate chain not complete, exiting"
-			self.opn = 1
+		cert = x509.parse(sCert)
 
 		x509cc = X509CertChain([x509])
 		if self.debugFlag == 1:
@@ -463,12 +464,29 @@ class LibSSL:
 		if self.debugFlag == 1:
 			pBanner("Reading ServerHelloDone")
 		
-		header = self.socket.recv(5)
-		if len(header) == 0:
-			self.opn = 1
-			return 0
-		sHelloDone = self.socket.recv(4)
-		self.sslStruct['sHelloDone'] = sHelloDone
+		header = self.socket.recv(1)
+		packet_type = ord(header[0])
+		packet_type_h = header[0]
+
+		if packet_type == 22:
+			header = self.socket.recv(4)
+			if len(header) == 0:
+				self.opn = 1
+				return
+			scLen = HexStr2IntVal(header, 2, 3)
+		else:
+			header = self.socket.recv(3)
+			if len(header) == 0:
+				self.opn = 1
+				return
+			scLen = HexStr2IntVal(header, 1, 2)
+	
+		if scLen > 0:
+			sHelloDone = self.socket.recv(scLen)
+			self.sslStruct['sHelloDone'] = sHelloDone
+		else:
+			self.sslStruct['sHelloDone'] = packet_type_h + \
+				header
 
 		if (self.debugFlag == 1):
 			HexStrDisplay("Server HelloDone", 
@@ -533,8 +551,9 @@ class LibSSL:
 			import struct
 			rec = hsMsg
 			recLen = len(hsMsg)
-			HexStrDisplay("Record Length", Str2HexStr(Pack2Bytes(recLen)))
-			HexStrDisplay("Record", Str2HexStr(rec))
+			if self.debugFlag == 1:
+				HexStrDisplay("Record Length", Str2HexStr(Pack2Bytes(recLen)))
+				HexStrDisplay("Record", Str2HexStr(rec))
 			seqNum = seq
 			seqNumUnsignedLongLong = pack('>Q', seqNum)
 			iHash = pack('b', 22)
@@ -663,7 +682,8 @@ class LibSSL:
 			padding = ''
 			for iter in range(0, pad_len):
 				padding = padding + struct.pack('B', pminus)
-			HexStrDisplay("Padding", Str2HexStr(padding))
+			if self.debugFlag == 1:
+				HexStrDisplay("Padding", Str2HexStr(padding))
 			
 			self.sslStruct['recordPlusMAC'] = rec + mFin +  padding
 			if self.debugFlag == 1:
@@ -775,8 +795,6 @@ class LibSSL:
 				pBanner("Reading ServerFinished from server")
 			socket = self.socket
 			header = self.socket.recv(5)
-			for iter1 in header:
-				print hex(ord(iter1))
 			CFLen = HexStr2IntVal(header, 3, 4)
 			if CFLen == 1:
 				if self.debugFlag == 1:
@@ -920,10 +938,10 @@ class LibSSL:
 		m3D = m3.digest()
 
 		self.sslStruct['masterSecret'] = m1D + m2D + m3D
-		HexStrDisplay("MasterSecret", 
-				Str2HexStr(self.sslStruct['masterSecret']))
 
 		if self.debugFlag == 1:
+			HexStrDisplay("MasterSecret", 
+				Str2HexStr(self.sslStruct['masterSecret']))
 			pBanner("Created MasterSecret")
 
 
@@ -1004,12 +1022,13 @@ class LibSSL:
 
 		shaHash = s2.digest()
 
-		HexStrDisplay("MD5 Hash", Str2HexStr(md5Hash))
-		HexStrDisplay("SHA Hash", Str2HexStr(shaHash))
 
 		self.sslStruct['cFinished'] = "\x14\x00\x00\x24" + \
 					md5Hash + shaHash
 		if self.debugFlag == 1:
+			HexStrDisplay("MD5 Hash", Str2HexStr(md5Hash))
+			HexStrDisplay("SHA Hash", Str2HexStr(shaHash))
+
 			HexStrDisplay("ClientFinished Message", 
 				Str2HexStr(self.sslStruct['cFinished']))
 
@@ -1076,7 +1095,7 @@ class LibSSL:
 							mFin
 
 
-		HexStrDisplay("Key Block", Str2HexStr(self.sslStruct['keyBlock']))
+
 	
 		self.sslStruct['wMacPtr'] = self.sslStruct['keyBlock'][0:20]
 		self.sslStruct['rMacPtr'] = self.sslStruct['keyBlock'][20:40]
@@ -1085,14 +1104,14 @@ class LibSSL:
 		self.sslStruct['wIVPtr'] = self.sslStruct['keyBlock'][104:120]
 		self.sslStruct['rIVPtr'] = self.sslStruct['keyBlock'][120:136]
 
-
-		HexStrDisplay("wMacPtr", Str2HexStr(self.sslStruct['wMacPtr']))
-		HexStrDisplay("rMacPtr", Str2HexStr(self.sslStruct['rMacPtr']))
-		HexStrDisplay("wKeyPtr", Str2HexStr(self.sslStruct['wKeyPtr']))
-		HexStrDisplay("rKeyPtr", Str2HexStr(self.sslStruct['rKeyPtr']))
-		HexStrDisplay("wIVPtr", Str2HexStr(self.sslStruct['wIVPtr']))
-		HexStrDisplay("rIVPtr", Str2HexStr(self.sslStruct['rIVPtr']))
 		if self.debugFlag == 1:
-			pBanner("Created Key Block")
+			HexStrDisplay("Key Block", Str2HexStr(self.sslStruct['keyBlock']))
+			HexStrDisplay("wMacPtr", Str2HexStr(self.sslStruct['wMacPtr']))
+			HexStrDisplay("rMacPtr", Str2HexStr(self.sslStruct['rMacPtr']))
+			HexStrDisplay("wKeyPtr", Str2HexStr(self.sslStruct['wKeyPtr']))
+			HexStrDisplay("rKeyPtr", Str2HexStr(self.sslStruct['rKeyPtr']))
+			HexStrDisplay("wIVPtr", Str2HexStr(self.sslStruct['wIVPtr']))
+			HexStrDisplay("rIVPtr", Str2HexStr(self.sslStruct['rIVPtr']))
 
+			pBanner("Created Key Block")
 

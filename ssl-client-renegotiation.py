@@ -75,7 +75,8 @@ if config.valid_lines == 0:
 	sys.exit(1)
 
 common = common(logger, host, port, config)
-sLib = LibSSL(debugFlag = 1, comm = common)
+ssl_config_obj_list = copy.deepcopy(config.config_obj_list)
+sLib = LibSSL(debugFlag = 0, config_obj_list = ssl_config_obj_list, comm = common)
 populate_random_numbers(common, sLib)
 
 sLib.TCPConnect()
@@ -105,18 +106,24 @@ if sLib.opn == 1:
 sLib.CreateMasterSecret()
 sLib.CreateFinishedHash()
 sLib.CreateKeyBlock()
-HexStrDisplay("WIV ", Str2HexStr(sLib.sslStruct['wIVPtr']))
-HexStrDisplay("RIV ", Str2HexStr(sLib.sslStruct['rIVPtr']))
+if sLib.debugFlag == 1:
+	HexStrDisplay("WIV ", Str2HexStr(sLib.sslStruct['wIVPtr']))
+	HexStrDisplay("RIV ", Str2HexStr(sLib.sslStruct['rIVPtr']))
 sLib.SendSSLPacket(sLib.sslStruct['cFinished'], 0, 0)
-HexStrDisplay("WIV ", Str2HexStr(sLib.sslStruct['wIVPtr']))
-HexStrDisplay("RIV ", Str2HexStr(sLib.sslStruct['rIVPtr']))
+if sLib.debugFlag == 1:
+	HexStrDisplay("WIV ", Str2HexStr(sLib.sslStruct['wIVPtr']))
+	HexStrDisplay("RIV ", Str2HexStr(sLib.sslStruct['rIVPtr']))
 sLib.ReadSF()
-HexStrDisplay("WIV ", Str2HexStr(sLib.sslStruct['wIVPtr']))
-HexStrDisplay("RIV ", Str2HexStr(sLib.sslStruct['rIVPtr']))
+if sLib.debugFlag == 1:
+	HexStrDisplay("WIV ", Str2HexStr(sLib.sslStruct['wIVPtr']))
+	HexStrDisplay("RIV ", Str2HexStr(sLib.sslStruct['rIVPtr']))
 
 sLib.SendSSLPacket(sLib.sslStruct['cHello'], 1, 1)
-sLib.ReadSSLPacket()
-if sLib.decryptedData[0] == "\x02":
-	logger.toboth("Server does not support unsafe legacy re-negotiation")
+try:
+	sLib.ReadSSLPacket()
+	if sLib.decryptedData[0] == "\x02":
+		logger.toboth("Server does not support unsafe legacy re-negotiation")
+except:
+	logger.toboth("server has not responded with an alert or re-negotiation handshake")
 
 sys.exit(1)
