@@ -607,6 +607,7 @@ class LibSSL:
 				hswor = AES.new( self.sslStruct['wKeyPtr'], AES.MODE_CBC, self.sslStruct['wIVPtr'] )
 				encryptedData = hswor.encrypt(self.sslStruct['recordPlusMAC'])
 
+
 			if self.debugFlag == 1:
 				HexStrDisplay("Encrypted Record + MAC", 
 					Str2HexStr(encryptedData))
@@ -1099,10 +1100,10 @@ class LibSSL:
 	
 		self.sslStruct['wMacPtr'] = self.sslStruct['keyBlock'][0:20]
 		self.sslStruct['rMacPtr'] = self.sslStruct['keyBlock'][20:40]
-		self.sslStruct['wKeyPtr'] = self.sslStruct['keyBlock'][40:72]
-		self.sslStruct['rKeyPtr'] = self.sslStruct['keyBlock'][72:104]
-		self.sslStruct['wIVPtr'] = self.sslStruct['keyBlock'][104:120]
-		self.sslStruct['rIVPtr'] = self.sslStruct['keyBlock'][120:136]
+		self.sslStruct['wKeyPtr'] = self.sslStruct['keyBlock'][40:56]
+		self.sslStruct['rKeyPtr'] = self.sslStruct['keyBlock'][56:72]
+		self.sslStruct['wIVPtr'] = self.sslStruct['keyBlock'][72:88]
+		self.sslStruct['rIVPtr'] = self.sslStruct['keyBlock'][88:104]
 
 		if self.debugFlag == 1:
 			HexStrDisplay("Key Block", Str2HexStr(self.sslStruct['keyBlock']))

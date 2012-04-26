@@ -15,7 +15,7 @@ RECV_FAIL="recv_failed"
 SEND_SUCCESS="send_packet_succeeded"
 SEND_FAIL="send_packed_failed"
 
-DEFAULT_CH_CIPHER_SUITES="\x00\x35"
+DEFAULT_CH_CIPHER_SUITES="\x00\x2F"
 DEFAULT_CH_CLIENT_RANDOM="\x44\x44\x44\x44\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66\x66"
 
 SSL_REC_VER_DEF=3
