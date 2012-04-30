@@ -570,39 +570,42 @@ class LibTLS:
 				HexStrDisplay("Record", Str2HexStr(rec))
 			seqNum = seq
 			seqNumUnsignedLongLong = pack('>Q', seqNum)
-			iHash = pack('b', 22)
-			iHash1 = Pack2Bytes(recLen)
+			iHash = pack('B', 22)
+			iHash1 = pack('>H', recLen)
 
 			m = hmac.new(self.sslStruct['wMacPtr'], digestmod=sha1)
-			m.update(pad1SHA)
-			m.update(seqNumUnsignedLongLong + iHash + "\x03\x01" + iHash1)
+			m.update("\x00\x00\x00\x00\x00\x00\x00\x00")
+			m.update("\x16")
+			m.update("\x03")
+			m.update("\x01")
+			m.update(iHash1)
 			m.update(rec)
-			mInt = m.digest()
-	
-			m1 = hmac.new(self.sslStruct['wMacPtr'], digestmod=sha1)
-			m1.update(pad2SHA)
-			m1.update(mInt)
-			mFin = m1.digest()
-	
-			if self.debugFlag == 1:
-				HexStrDisplay("Intermediate MAC", 
-						Str2HexStr(mInt))
-	
-				HexStrDisplay("Final MAC", Str2HexStr(mFin))
-	
-			self.sslStruct['recordPlusMAC'] = rec + mInt
+			m = m.digest()
 
-			pad_len = 16 - len(rec + mInt) & 15
+			for iter1 in "\x00\x00\x00\x00\x00\x00\x00\x00" + "\x16" + \
+					"\x03" + \
+					"\x01" + \
+					iHash1 + \
+					rec:
+				print "%02X" % (ord(iter1))
+			if self.debugFlag == 1:
+				HexStrDisplay("Final MAC", Str2HexStr(m))
+	
+			self.sslStruct['recordPlusMAC'] = rec + m
+			print "\r\nLength:%s\r\n" % (len(rec + m))
+			currentLength = len(rec + m) + 1
+			blockLength = 16
+			pad_len = blockLength -(currentLength % blockLength)
 			if self.debugFlag == 1:
 				print "\nPadding Length: " + str(pad_len)
-			pminus = pad_len - 1
 			padding = ''
-			for iter in range(0, pad_len):
-				padding = padding + struct.pack('B', pminus)
+			for iter in range(0, pad_len + 1):
+				padding = padding + struct.pack('B', pad_len)
+
 			if self.debugFlag == 1:
 				HexStrDisplay("Padding", Str2HexStr(padding))
 			
-			self.sslStruct['recordPlusMAC'] = rec + mInt +  padding
+			self.sslStruct['recordPlusMAC'] = rec + m + padding
 			if self.debugFlag == 1:
 				HexStrDisplay("Record + MAC", 
 				      Str2HexStr(self.sslStruct['recordPlusMAC']))
@@ -885,13 +888,6 @@ class LibTLS:
 
 
 		#
-		# storing pmkey
-		#
-		pmkeyfd = open('files/pmkey.txt', 'w')
-		pmkeyfd.write(tlsCKEPMKey)
-		pmkeyfd.close()
-
-		#
 		# TLS encryption
 		#
 		sCert = open("./files/servercrt.pem").read()
@@ -903,41 +899,8 @@ class LibTLS:
 		encData = cert.publicKey.encrypt(ckeArray)
 		encDataStr_tls = encData.tostring()
 
-		epmfd = open('files/epm-tls.txt', 'w')
-		epmfd.write(encDataStr_tls)
-		epmfd.close()
-
-
-		#
-		# Openssl encrypted
-		#
-		os.system("openssl rsautl -pkcs -encrypt -certin -inkey files/servercrt.pem -in files/pmkey.txt -out files/epm-openssl.txt")
-
-		#
-		# m2c encrypted
-		#
-		import M2Crypto as m2c
-
-		key = m2c.RSA.load_pub_key('files/pub.pem')
- 		FILE = open("files/pmkey.txt", "r")
-
-	 	data = FILE.read()
-
- 		encDataStr_m2c = key.public_encrypt(data, m2c.RSA.pkcs1_oaep_padding)
-
-		mpmfd = open('files/epm-m2c.txt', 'w')
-		mpmfd.write(encDataStr_m2c)
-		mpmfd.close()
-
-		
-#		self.sslStruct['encryptedPMKey'] = open("files/epm-openssl.txt", 'r').read()
-#		self.sslStruct['encryptedPMKey_len'] = len(self.sslStruct['encryptedPMKey'])
-
 		self.sslStruct['encryptedPMKey'] = encDataStr_tls
 		self.sslStruct['encryptedPMKey_len'] = len(self.sslStruct['encryptedPMKey'])
-
-#		self.sslStruct['encryptedPMKey'] = encDataStr_m2c
-#		self.sslStruct['encryptedPMKey_len'] = len(self.sslStruct['encryptedPMKey'])
 
 		self.sslStruct['ckeMessage'] = 	ckeMsgHdr + \
 			Pack3Bytes(self.sslStruct['encryptedPMKey_len'] + 2) + \
@@ -946,14 +909,13 @@ class LibTLS:
 
 		HexStrDisplay("Client Key Exchange", Str2HexStr(self.sslStruct['ckeMessage']))
 
-		#if (self.debugFlag == 1):
-		#	HexStrDisplay("Client KeyExchange Message", 
-		#		Str2HexStr(self.sslStruct['ckeMessage']))
-		##	print "\r\nPublic Key:\r\n", cert.publicKey.write() + "\r\n"
-		#	HexStrDisplay("Client Encrypted Pre Master Key", 
-		#		Str2HexStr(self.sslStruct['encryptedPMKey']))
-		#	HexStrDisplay("Client ChangeCipherSpec Message", 
-		#		Str2HexStr(cssPkt))			
+		if (self.debugFlag == 1):
+			HexStrDisplay("Client KeyExchange Message", 
+				Str2HexStr(self.sslStruct['ckeMessage']))
+			HexStrDisplay("Client Encrypted Pre Master Key", 
+				Str2HexStr(self.sslStruct['encryptedPMKey']))
+			HexStrDisplay("Client ChangeCipherSpec Message", 
+				Str2HexStr(cssPkt))			
 		self.encrypted = 0
 		self.sslHandshake = self.sslStruct['ckeMessage']	
 		if self.debugFlag == 1:
@@ -1092,10 +1054,7 @@ class LibTLS:
 			'client finished',
 			md5Hash + shaHash, 12)
 
-		cFinished_str = ""
-		for ch in cFinished:
-			cFinished_str += chr(ch)
-
+		cFinished_str = str(cFinished)
 
 		self.sslStruct['cFinished'] = "\x14\x00\x00\x0b" + \
 					cFinished_str
