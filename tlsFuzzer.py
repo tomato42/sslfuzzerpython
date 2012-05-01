@@ -631,7 +631,7 @@ class LibTLS:
 		
 			self.socket.send(
 				self.sslStruct['encryptedRecordPlusMAC'])
-			self.sslStruct['wIVPtr'] = encryptedData[48:64]
+			self.sslStruct['wIVPtr'] = encryptedData[len(encryptedData) - 16 :len(encryptedData)]
 
 			if self.debugFlag == 1:
 				pBanner("Sent SSL Packet")
@@ -694,9 +694,9 @@ class LibTLS:
 				      Str2HexStr(self.sslStruct['recordPlusMAC']))
 
 			from Crypto.Cipher import AES
-			global rec
-			rec = AES.new( self.sslStruct['wKeyPtr'], AES.MODE_CBC, self.sslStruct['wIVPtr'] )
-			encryptedData = rec.encrypt(self.sslStruct['recordPlusMAC'])
+			global ciph
+			ciph = AES.new( self.sslStruct['wKeyPtr'], AES.MODE_CBC, self.sslStruct['wIVPtr'] )
+			encryptedData = ciph.encrypt(self.sslStruct['recordPlusMAC'])
 	
 			if self.debugFlag == 1:			
 				HexStrDisplay("Encrypted Record + MAC", 
