@@ -582,7 +582,8 @@ class LibTLS:
 			m.update(rec)
 			m = m.digest()
 
-			for iter1 in "\x00\x00\x00\x00\x00\x00\x00\x00" + "\x16" + \
+			for iter1 in "\x00\x00\x00\x00\x00\x00\x00\x00" + \
+					"\x16" + \
 					"\x03" + \
 					"\x01" + \
 					iHash1 + \
@@ -592,10 +593,11 @@ class LibTLS:
 				HexStrDisplay("Final MAC", Str2HexStr(m))
 	
 			self.sslStruct['recordPlusMAC'] = rec + m
-			print "\r\nLength:%s\r\n" % (len(rec + m))
+			print "\r\nRecord Length:%s\r\n" % (len(rec + m))
 			currentLength = len(rec + m) + 1
 			blockLength = 16
 			pad_len = blockLength -(currentLength % blockLength)
+			print "\r\nCurrentLength mod BlockLength = %d\r\n" % (currentLength % blockLength)
 			if self.debugFlag == 1:
 				print "\nPadding Length: " + str(pad_len)
 			padding = ''
@@ -1055,8 +1057,10 @@ class LibTLS:
 			md5Hash + shaHash, 12)
 
 		cFinished_str = str(cFinished)
+		cfLen = len(cFinished_str) - 1
+		cfLen = Pack3Bytes(cfLen)
 
-		self.sslStruct['cFinished'] = "\x14\x00\x00\x0b" + \
+		self.sslStruct['cFinished'] = "\x14" + cfLen + \
 					cFinished_str
 
 
