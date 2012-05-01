@@ -582,22 +582,13 @@ class LibTLS:
 			m.update(rec)
 			m = m.digest()
 
-			for iter1 in "\x00\x00\x00\x00\x00\x00\x00\x00" + \
-					"\x16" + \
-					"\x03" + \
-					"\x01" + \
-					iHash1 + \
-					rec:
-				print "%02X" % (ord(iter1))
 			if self.debugFlag == 1:
 				HexStrDisplay("Final MAC", Str2HexStr(m))
 	
 			self.sslStruct['recordPlusMAC'] = rec + m
-			print "\r\nRecord Length:%s\r\n" % (len(rec + m))
 			currentLength = len(rec + m) + 1
 			blockLength = 16
 			pad_len = blockLength -(currentLength % blockLength)
-			print "\r\nCurrentLength mod BlockLength = %d\r\n" % (currentLength % blockLength)
 			if self.debugFlag == 1:
 				print "\nPadding Length: " + str(pad_len)
 			padding = ''
@@ -670,40 +661,34 @@ class LibTLS:
 			if self.debugFlag == 1:
 				HexStrDisplay("Record Length", Str2HexStr(Pack2Bytes(recLen)))
 				HexStrDisplay("Record", Str2HexStr(rec))
-			seqNum = seq
-			seqNumUnsignedLongLong = pack('>Q', seqNum)
-			iHash = pack('b', 23)
-			iHash1 = Pack2Bytes(recLen)
 
-			m = sha1()
-			m.update(self.sslStruct['wMacPtr'])
-			m.update(pad1SHA)
-			m.update(seqNumUnsignedLongLong + iHash + iHash1)
+			iHash1 = pack('>H', recLen)
+
+			m = hmac.new(self.sslStruct['wMacPtr'], digestmod=sha1)
+			m.update("\x00\x00\x00\x00\x00\x00\x00\x01")
+			m.update("\x17")
+			m.update("\x03")
+			m.update("\x01")
+			m.update(iHash1)
 			m.update(rec)
-			mInt = m.digest()
-	
-			m1 = sha1()
-			m1.update(self.sslStruct['wMacPtr'])
-			m1.update(pad2SHA)
-			m1.update(mInt)
-			mFin = m1.digest()
-			if self.debugFlag == 1:	
-				HexStrDisplay("Intermediate MAC", 
-						Str2HexStr(mInt))
-	
-				HexStrDisplay("Final MAC", Str2HexStr(mFin))
-	
-			self.sslStruct['recordPlusMAC'] = rec + mFin
+			m = m.digest()
 
-			pad_len = 16 - len(rec + mFin) & 15
-			pminus = pad_len - 1
-			padding = ''
-			for iter in range(0, pad_len):
-				padding = padding + struct.pack('B', pminus)
+			if self.debugFlag == 1:	
+				HexStrDisplay("Final MAC", Str2HexStr(m))
+	
+
+			currentLength = len(rec + m) + 1
+			blockLength = 16
+			pad_len = blockLength -(currentLength % blockLength)
+			print "\r\nCurrentLength mod BlockLength = %d\r\n" % (currentLength % blockLength)
 			if self.debugFlag == 1:
-				HexStrDisplay("Padding", Str2HexStr(padding))
-			
-			self.sslStruct['recordPlusMAC'] = rec + mFin +  padding
+				print "\nPadding Length: " + str(pad_len)
+			padding = ''
+			for iter in range(0, pad_len + 1):
+				padding = padding + struct.pack('B', pad_len)
+
+			self.sslStruct['recordPlusMAC'] = rec + m + padding
+
 			if self.debugFlag == 1:
 				HexStrDisplay("Record + MAC", 
 				      Str2HexStr(self.sslStruct['recordPlusMAC']))
@@ -718,7 +703,7 @@ class LibTLS:
 					Str2HexStr(encryptedData))
 	
 			packLen = len(encryptedData)
-			self.sslStruct['encryptedRecordPlusMAC'] = sslAppHeaderDefault + \
+			self.sslStruct['encryptedRecordPlusMAC'] = tlsAppHeaderDefault + \
 					Pack2Bytes(packLen) + encryptedData
 
 			if self.debugFlag == 1:
@@ -1024,16 +1009,8 @@ class LibTLS:
 		m1.update(self.sslStruct['sCertificateCF'])
 		m1.update(self.sslStruct['sHelloDone'])
 		m1.update(self.sslStruct['ckeMessage'])
-		m1.update("CLNT")
-		m1.update(self.sslStruct['masterSecret'])
-		m1.update(pad1MD5)
-
+		md5Hash = m1.digest()
 	
-		m2 = md5()
-		m2.update(self.sslStruct['masterSecret'])
-		m2.update(pad2MD5)
-		m2.update(m1.digest())
-		md5Hash = m2.digest()
 
 		s1 = sha1()
 		s1.update(self.sslStruct['cHello'])
@@ -1041,23 +1018,15 @@ class LibTLS:
 		s1.update(self.sslStruct['sCertificateCF'])
 		s1.update(self.sslStruct['sHelloDone'])
 		s1.update(self.sslStruct['ckeMessage'])
-		s1.update("CLNT")
-		s1.update(self.sslStruct['masterSecret'])
-		s1.update(pad1SHA)
+		shaHash = s1.digest()
 		
-		s2 = sha1()
-		s2.update(self.sslStruct['masterSecret'])
-		s2.update(pad2SHA)
-		s2.update(s1.digest())
-
-		shaHash = s2.digest()
 
 		cFinished = self.PRF(self.sslStruct['masterSecret'], 
 			'client finished',
 			md5Hash + shaHash, 12)
 
 		cFinished_str = str(cFinished)
-		cfLen = len(cFinished_str) - 1
+		cfLen = len(cFinished_str)
 		cfLen = Pack3Bytes(cfLen)
 
 		self.sslStruct['cFinished'] = "\x14" + cfLen + \

@@ -187,6 +187,7 @@ sslRecHeaderDeafult = '\x16' + sslRecVersionDefault
 tlsRecHeaderDeafult = "\x16" + tlsRecVersionDefault
 
 sslAppHeaderDefault = '\x17' + sslRecVersionDefault
+tlsAppHeaderDefault = '\x17' + tlsRecVersionDefault
 
 sslRecVersionDefault = '\x03\x00'
 sslRecHeaderDeafult = '\x16' + sslRecVersionDefault
