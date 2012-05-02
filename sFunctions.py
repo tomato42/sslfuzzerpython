@@ -76,31 +76,6 @@ def HexStr2IntVal(string, startPos, endPos):
 		content = string[endPos]+string[startPos]
 		return unpack('H', content)[0]
 
-###############################################################################
-#
-# HexStrDisplay --
-#
-#			Hexadecimal String display function, with customization
-#
-# Results:
-#			1. Takes a string as input
-#			2. Customizes the string for display and displays it
-#
-# Side Effects:
-#			None
-###############################################################################
-def HexStrDisplay(label, string):
-		print "\n" + label + ":\n",
-		strList = string.rsplit('0x')
-		chNum = 1
-		for item in strList[1:]:
-			print rjust(item, 3, '0'),
-			if (chNum == 8):
-				print '-',
-			if (chNum == 16):
-				print '\n',
-				chNum = 0
-			chNum += 1
 
 ###############################################################################
 #
@@ -147,18 +122,4 @@ def Pack2Bytes(integer):
 
 	return content
 
-###############################################################################
-#
-# pBanner --
-#
-#			Function to print banner
-#
-# Results:
-#			1. Takes a string as input and formats it as a banner
-#
-# Side Effects:
-#			None
-###############################################################################
-def pBanner(string):
-	print "\n################INFO: " + \
-	      string + " ##############\n"
+

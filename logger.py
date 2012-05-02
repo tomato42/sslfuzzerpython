@@ -11,19 +11,19 @@ class logger:
 			self.read_error = 1
 
 	def tostdout(self, msg, crit="INFO"):
-		self.msg = "%s -> %s: %s\r\n" % ( str(time.asctime()), crit, msg)
+		self.msg = "\n%s -> %s: %s\n" % ( str(time.asctime()), crit, msg)
 
-		print msg
+		sys.stdout.write(self.msg)
 
 	def tofile(self, msg, crit="INFO"):
-		self.msg = "%s -> %s: %s\r\n" % ( str(time.asctime()), crit, msg)
+		self.msg = "\n%s -> %s: %s\n" % ( str(time.asctime()), crit, msg)
 		
 		self.logfd.write(self.msg)
 
 	def toboth(self, msg, crit="INFO"):
-		self.msg = "%s -> %s: %s\r\n" % ( str(time.asctime()), crit, msg)
+		self.msg = "\n%s -> %s: %s\n" % ( str(time.asctime()), crit, msg)
 
-		print msg		
+		sys.stdout.write(self.msg)		
 
 		self.logfd.write(self.msg)
 	

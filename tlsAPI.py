@@ -1,29 +1,27 @@
 #!/usr/bin/python
 
-import os
-import sys
-import socket
-import string
+import os, sys, socket, string, struct, base64, hashlib, copy, random, hmac, math
+
 from struct import *
 from sFunctions import *
 from constants import *
 import tlslite
 from tlslite.api import *
-import base64
 from Crypto.Cipher import AES
 from array import *
-import hashlib
 from hashlib import *
-import copy
-import random
-import hmac
-import math
+
+global enc_hs_with_reneg
+global enc_hs_no_reneg
+global enc_rec
+global dec_rec
+global dec_hs
 
 ###############################################################################
 #
-# LibSSL --
+# LibTLS --
 #
-# 			SSL Class for Fuzzer
+# 			TLS Class for Fuzzer
 #
 ###############################################################################
 
@@ -159,6 +157,9 @@ class LibTLS:
 				break
 		return ln
 
+	#
+	# get random string of num_bytes bytes
+	#
 	def get_random_string(self, num_bytes):
 		word = ''
 		for i in range(num_bytes):
@@ -178,54 +179,93 @@ class LibTLS:
 #			None
 ###############################################################################
 	def CreateClientHello(self, cipher = None):
-		if self.comm.config.get_value("client_hello_hs_cipher_suites") == "DECIDE":
+		if self.comm.config.get_value(
+			"client_hello_hs_cipher_suites") == "DECIDE":
 	                if cipher != None:
-        	                self.set_value("client_hello_hs_cipher_suites",
+        	                self.set_value(
+					"client_hello_hs_cipher_suites",
                 	                cipher)
-				self.set_type("client_hello_hs_cipher_suites", ">H")
+				self.set_type(
+					"client_hello_hs_cipher_suites", 
+					">H")
 
-	                        self.set_value("client_hello_hs_cipher_suites_len", 2)
-				self.set_type("client_hello_hs_cipher_suites_len", ">H")
+	                        self.set_value(
+					"client_hello_hs_cipher_suites_len", 
+					2)
+				self.set_type(
+					"client_hello_hs_cipher_suites_len", 
+					">H")
 			else:
-				self.set_value("client_hello_hs_cipher_suites", 
+				self.set_value(
+					"client_hello_hs_cipher_suites", 
 					DEFAULT_CH_CIPHER_SUITES)
-				self.set_type("client_hello_hs_cipher_suites", ">H")
+				self.set_type(
+					"client_hello_hs_cipher_suites", 
+					">H")
 
-	                        self.set_value("client_hello_hs_cipher_suites_len", 2)
-				self.set_type("client_hello_hs_cipher_suites_len", ">H")
+	                        self.set_value(
+					"client_hello_hs_cipher_suites_len", 
+					2)
+				self.set_type(
+					"client_hello_hs_cipher_suites_len", 
+					">H")
 
-			if self.comm.config.get_value("client_hello_hs_cipher_suites_len") == "DECIDE":
+			if self.comm.config.get_value(
+				"client_hello_hs_cipher_suites_len") == "DECIDE":
 				if cipher != None:
-	                                self.set_value("client_hello_hs_cipher_suites_len", 2)
-					self.set_type("client_hello_hs_cipher_suites_len", ">H")
+	                                self.set_value(
+					"client_hello_hs_cipher_suites_len", 
+					2)
+					self.set_type(
+					"client_hello_hs_cipher_suites_len", 
+					">H")
 				else:
-					self.set_value("client_hello_hs_cipher_suites_len",
-						len(DEFAULT_CH_CIPHER_SUITES))
-					self.set_type("client_hello_hs_cipher_suites_len", ">H")
+					self.set_value(
+					"client_hello_hs_cipher_suites_len",
+					len(DEFAULT_CH_CIPHER_SUITES))
+					self.set_type(
+					"client_hello_hs_cipher_suites_len", 
+					">H")
 
 		else:
-			if self.comm.config.get_value("client_hello_hs_cipher_suites_len") == "DECIDE":
-				setting = "%d:>H" % (len(self.get_value("client_hello_hs_cipher_suites")))
-				self.set_value("client_hello_hs_cipher_suites_len", 
-					len(self.get_value("client_hello_hs_cipher_suites")))
-				self.set_type("client_hello_hs_cipher_suites_len", ">H")
+			if self.comm.config.get_value(
+				"client_hello_hs_cipher_suites_len") == "DECIDE":
+				setting = "%d:>H" % (len(self.get_value(
+					"client_hello_hs_cipher_suites")))
+				self.set_value(
+					"client_hello_hs_cipher_suites_len", 
+					len(self.get_value(
+					"client_hello_hs_cipher_suites")))
+				self.set_type(
+					"client_hello_hs_cipher_suites_len", 
+					">H")
 
 		#
 		# Handle client random
 		#
-		if self.comm.config.get_value("client_hello_hs_client_random") == "DECIDE":
-			self.set_value("client_hello_hs_client_random", DEFAULT_CH_CLIENT_RANDOM)
-			self.set_type("client_hello_hs_client_random", "S")
+		if self.comm.config.get_value(
+			"client_hello_hs_client_random") == "DECIDE":
+			self.set_value(
+			"client_hello_hs_client_random", 
+				DEFAULT_CH_CLIENT_RANDOM)
+			self.set_type("client_hello_hs_client_random", 
+				"S")
 
-		self.sslStruct['cHelloRB'] = self.get_value("client_hello_hs_client_random")
+		self.sslStruct['cHelloRB'] = \
+			self.get_value("client_hello_hs_client_random")
 
 		#
 		# Handle compression methods
 		#
-		if self.comm.config.get_value("client_hello_hs_compression_methods") == "DECIDE":
+		if self.comm.config.get_value(
+			"client_hello_hs_compression_methods") == "DECIDE":
 			setting = pack('H', 1)
-			self.set_value("client_hello_hs_compression_methods", setting)
-			self.set_type("client_hello_hs_compression_methods", "H")
+			self.set_value(
+				"client_hello_hs_compression_methods", 
+				setting)
+			self.set_type(
+				"client_hello_hs_compression_methods", 
+				"H")
 		
 		#
 		# Length of handshake part = 
@@ -236,9 +276,11 @@ class LibTLS:
 		#	Length of cipher_suites (variable) + 
 		#	Length of compression_methods (variable)
 		#
-		if self.comm.config.get_value("client_hello_hs_length") == "DECIDE":
+		if self.comm.config.get_value("client_hello_hs_length")\
+			 == "DECIDE":
 			self.client_hello_hs_length = calcsize('>HBH') + 32 + \
-				int(self.get_value("client_hello_hs_cipher_suites_len")) + \
+			int(self.get_value(
+				"client_hello_hs_cipher_suites_len")) + \
 				2
 			self.set_value("client_hello_hs_length",
 				self.client_hello_hs_length)
@@ -247,23 +289,29 @@ class LibTLS:
 			self.client_hello_hs_length = \
 				self.get_value("client_hello_hs_length")
 
-		self.set_value("client_hello_hs_length", self.client_hello_hs_length)
+		self.set_value("client_hello_hs_length", 
+			self.client_hello_hs_length)
 		self.set_type("client_hello_hs_length", ">H")
 
-		if self.comm.config.get_value("client_hello_record_length") == "DECIDE":
-			self.client_hello_record_length = self.client_hello_hs_length + \
+		if self.comm.config.get_value("client_hello_record_length") \
+			== "DECIDE":
+			self.client_hello_record_length = \
+				self.client_hello_hs_length + \
 				4
 		else:
-			self.client_hello_record_length = self.get_value("client_hello_record_length")
+			self.client_hello_record_length = \
+				self.get_value("client_hello_record_length")
 
-		self.set_value("client_hello_record_length", self.client_hello_record_length)
+		self.set_value("client_hello_record_length", 
+			self.client_hello_record_length)
 		self.set_type("client_hello_record_length", ">H")
 
 		if self.sslRecord == None:
 			self.sslRecord = ""
 		if self.sslHandshake == None:
 			self.sslHandshake = ""
-		self.sslStruct['cHelloRB'] = self.get_value("client_hello_hs_client_random")
+		self.sslStruct['cHelloRB'] = \
+			self.get_value("client_hello_hs_client_random")
 
 		for iter1 in self.config_obj_list:
                 	if "client_hello_hs" in iter1.key:
@@ -276,26 +324,24 @@ class LibTLS:
         	                #
 	                        try:
 					if "client_hello_hs_length" in iter1.key:
-						packed_value = pack('>B', 0) + pack('>H', self.client_hello_hs_length)
+						packed_value = \
+						  pack('>B', 0) + \
+						  pack('>H', 
+						  self.client_hello_hs_length)
 					else:        
-						packed_value = pack('%s' % (tp), int(value))
+						packed_value = \
+						  pack('%s' % (tp), int(value))
         	                except ValueError:
         	                        packed_value = value
 
         	                #
         	                # Add packed value
         	                #       
-        	                self.sslHandshake = self.sslHandshake + str(packed_value)
+        	                self.sslHandshake = self.sslHandshake + \
+					str(packed_value)
 
 		self.sslStruct['cHello'] = self.sslHandshake
-		if (self.debugFlag == 1):	
-			pBanner("Creating ClientHello")
-			print "\nLength of ClientHello:" + \
-			str(len(self.sslStruct['cHello']))
 
-			HexStrDisplay(	"ClientHello Message Created", 
-					Str2HexStr(self.sslStruct['cHello']))
-			pBanner("Created ClientHello")
 
 ###############################################################################
 #
@@ -313,8 +359,6 @@ class LibTLS:
 #			None
 ###############################################################################
 	def ReadServerHello(self):
-		if self.debugFlag == 1:
-			pBanner("Reading ServerHello")
 		header = self.socket.recv(5)
 
 		if len(header) == 0:
@@ -341,12 +385,6 @@ class LibTLS:
 		self.sslStruct['sHello'] = sHello
 		self.sslStruct['sHelloRB'] = sHello[6:32+6]
 
-		if (self.debugFlag == 1):		
-			HexStrDisplay(	"ServerHello Message Received", 
-					Str2HexStr(self.sslStruct['sHello']))
-			HexStrDisplay(  "ServerHello Random Bytes",
-					Str2HexStr(self.sslStruct['sHelloRB']))	
-			pBanner("Read ServerHello")
 
 ###############################################################################
 #
@@ -364,9 +402,6 @@ class LibTLS:
 #			None
 ###############################################################################
 	def ReadServerCertificate(self):
-		if self.debugFlag == 1:
-			pBanner("Reading ServerCertificate")
-		
 		header = self.socket.recv(1)
 		packet_type = ord(header[0])
 		packet_type_h = header[0]
@@ -393,15 +428,7 @@ class LibTLS:
 		self.sslStruct['sCertificate'] = sCertificate[10:]
 		self.sslStruct['sCertificateCF'] = sCertificate
 
-		if (self.debugFlag == 1):
-			HexStrDisplay("Server Certificate", 
-				Str2HexStr(self.sslStruct['sCertificate']))
-			HexStrDisplay("Server Certificate CF", 
-				Str2HexStr(self.sslStruct['sCertificateCF']))
-
-		
-
-		fobject = open("./files/servercrt.pem", 'w')
+		fobject = open(serverCert, 'w')
 		fobject.write("-----BEGIN CERTIFICATE-----\n")
 		output = base64.b64encode(self.sslStruct['sCertificate'])
 
@@ -418,15 +445,12 @@ class LibTLS:
 		fobject.write("\n-----END CERTIFICATE-----\n")
 		fobject.close()
 
-		sCert = open("./files/servercrt.pem").read()
-		x509 = X509()
-		cert = x509.parse(sCert)
+		sCert = open(serverCert).read()
+		self.x509 = X509()
+		cert = self.x509.parse(sCert)
 
-		x509cc = X509CertChain([x509])
-		if self.debugFlag == 1:
-			HexStrDisplay("Fingerprint",Str2HexStr(x509.getFingerprint()))
-			print "\nNumber of Certificates: " + str(x509cc.getNumCerts())
-			pBanner("Read ServerCertificate")
+		self.x509cc = X509CertChain([self.x509])
+
 
 ###############################################################################
 #
@@ -444,8 +468,6 @@ class LibTLS:
 #			None
 ###############################################################################
 	def ReadServerKeyExchange(self):
-		if self.debugFlag == 1:
-			pBanner("Reading Server Key Exchange")
 		header = self.socket.recv(5)
 		if len(header) == 0:
 			self.opn = 1
@@ -455,9 +477,6 @@ class LibTLS:
 		ske = self.socket.recv(scLen)
 		self.sslStruct['ske'] = ske
 
-		if self.debugFlag == 1:
-			HexStrDisplay("Server Key Exchange",Str2HexStr(ske))
-			pBanner("Read Server Key Exchange")
 
 ###############################################################################
 #
@@ -475,9 +494,6 @@ class LibTLS:
 #			None
 ###############################################################################
 	def ReadServerHelloDone(self):
-		if self.debugFlag == 1:
-			pBanner("Reading ServerHelloDone")
-		
 		header = self.socket.recv(1)
 		packet_type = ord(header[0])
 		packet_type_h = header[0]
@@ -502,10 +518,6 @@ class LibTLS:
 			self.sslStruct['sHelloDone'] = packet_type_h + \
 				header
 
-		if (self.debugFlag == 1):
-			HexStrDisplay("Server HelloDone", 
-				Str2HexStr(self.sslStruct['sHelloDone']))
-			pBanner("Read ServerHelloDone")
 
 ###############################################################################
 #
@@ -528,20 +540,11 @@ class LibTLS:
 	
 		self.sslRecord = recMsg + self.sslHandshake
 		
-		if self.debugFlag == 1:
-			pBanner("Sending CT Packet")
-			print "\nLength of HS Message: ", str(len(self.sslHandshake))
-			print "\nLength of Total Message: ", str(len(self.sslRecord))
-			HexStrDisplay("HS Message CT:", Str2HexStr(self.sslHandshake))
-			HexStrDisplay("Total Message CT:", Str2HexStr(self.sslRecord))
 
 		try:
 			self.socket.send(self.sslRecord)
 		except:
 			self.opn = 1
-
-		if self.debugFlag == 1:
-			pBanner("Sent CT Packet")
 
 ##############################################################################
 #
@@ -559,82 +562,65 @@ class LibTLS:
 #			None
 ###############################################################################
 	def SendSSLPacket(self, hsMsg, seq, renegotiate):
-			if self.debugFlag == 1:
-				pBanner("Sending SSL Packet")
-			import socket
-			import struct
 			rec = hsMsg
 			recLen = len(hsMsg)
-			if self.debugFlag == 1:
-				HexStrDisplay("Record Length", Str2HexStr(Pack2Bytes(recLen)))
-				HexStrDisplay("Record", Str2HexStr(rec))
-			seqNum = seq
-			seqNumUnsignedLongLong = pack('>Q', seqNum)
-			iHash = pack('B', 22)
-			iHash1 = pack('>H', recLen)
+			rec_len_packed = pack('>H', recLen)
 
-			m = hmac.new(self.sslStruct['wMacPtr'], digestmod=sha1)
-			m.update("\x00\x00\x00\x00\x00\x00\x00\x00")
+			self.seqNum = pack('>Q', seq)
+
+			m = hmac.new(self.sslStruct['wMacPtr'], 
+				digestmod=sha1)
+			m.update(self.seqNum)
 			m.update("\x16")
 			m.update("\x03")
 			m.update("\x01")
-			m.update(iHash1)
+			m.update(rec_len_packed)
 			m.update(rec)
 			m = m.digest()
 
-			if self.debugFlag == 1:
-				HexStrDisplay("Final MAC", Str2HexStr(m))
+			self.HexStrDisplay("Final MAC", Str2HexStr(m))
 	
-			self.sslStruct['recordPlusMAC'] = rec + m
 			currentLength = len(rec + m) + 1
 			blockLength = 16
-			pad_len = blockLength -(currentLength % blockLength)
-			if self.debugFlag == 1:
-				print "\nPadding Length: " + str(pad_len)
+			pad_len = blockLength - \
+				(currentLength % blockLength)
+
+			self.log("Padding Length: %s" % (str(pad_len)))
+
 			padding = ''
 			for iter in range(0, pad_len + 1):
-				padding = padding + struct.pack('B', pad_len)
+				padding = padding + \
+				struct.pack('B', pad_len)
 
-			if self.debugFlag == 1:
-				HexStrDisplay("Padding", Str2HexStr(padding))
+			self.HexStrDisplay("Padding", Str2HexStr(padding))
 			
-			self.sslStruct['recordPlusMAC'] = rec + m + padding
-			if self.debugFlag == 1:
-				HexStrDisplay("Record + MAC", 
-				      Str2HexStr(self.sslStruct['recordPlusMAC']))
+			self.sslStruct['recordPlusMAC'] = \
+				rec + m + padding
 	
 			if renegotiate == 1:
-				from Crypto.Cipher import AES
-				global hswr
-				hswr = AES.new( self.sslStruct['wKeyPtr'], AES.MODE_CBC, self.sslStruct['wIVPtr'] )
-				encryptedData = hswr.encrypt(self.sslStruct['recordPlusMAC'])
+				enc_hs_with_reneg = \
+AES.new( self.sslStruct['wKeyPtr'], AES.MODE_CBC, self.sslStruct['wIVPtr'] )
+				encryptedData = \
+enc_hs_with_reneg.encrypt(self.sslStruct['recordPlusMAC'])
 
 			if renegotiate == 0:
-				from Crypto.Cipher import AES
-				global hswor
-				hswor = AES.new( self.sslStruct['wKeyPtr'], AES.MODE_CBC, self.sslStruct['wIVPtr'] )
-				encryptedData = hswor.encrypt(self.sslStruct['recordPlusMAC'])
+				enc_hs_wo_reneg = \
+AES.new( self.sslStruct['wKeyPtr'], AES.MODE_CBC, self.sslStruct['wIVPtr'] )
+				encryptedData = \
+enc_hs_wo_reneg.encrypt(self.sslStruct['recordPlusMAC'])
 
 
-			if self.debugFlag == 1:
-				HexStrDisplay("Encrypted Record + MAC", 
-					Str2HexStr(encryptedData))
-	
 			packLen = len(encryptedData)
 
-			self.sslStruct['encryptedRecordPlusMAC'] = tlsRecHeaderDeafult + \
-					Pack2Bytes(packLen) + encryptedData
+			self.sslStruct['encryptedRecordPlusMAC'] = \
+				tlsRecHeaderDeafult + \
+				Pack2Bytes(packLen) + encryptedData
 
-			if self.debugFlag == 1:
-				HexStrDisplay("Packet Sent", 
-					Str2HexStr(self.sslStruct['encryptedRecordPlusMAC']))
-		
 			self.socket.send(
 				self.sslStruct['encryptedRecordPlusMAC'])
-			self.sslStruct['wIVPtr'] = encryptedData[len(encryptedData) - 16 :len(encryptedData)]
+			self.sslStruct['wIVPtr'] = \
+encryptedData[len(encryptedData) - 16 :len(encryptedData)]
 
-			if self.debugFlag == 1:
-				pBanner("Sent SSL Packet")
 
 ##############################################################################
 #
@@ -652,69 +638,51 @@ class LibTLS:
 #			None
 ###############################################################################
 	def SendRecordPacket(self, recMsg, seq):
-			if self.debugFlag == 1:
-				pBanner("Sending SSL Record Packet")
-			import struct
-			import socket
+			self.log("Sending SSL Record Packet")
+
 			rec = recMsg
 			recLen = len(recMsg)
-			if self.debugFlag == 1:
-				HexStrDisplay("Record Length", Str2HexStr(Pack2Bytes(recLen)))
-				HexStrDisplay("Record", Str2HexStr(rec))
+			rec_len_packed = pack('>H', recLen)
 
-			iHash1 = pack('>H', recLen)
+			self.seqNum = pack('>Q', seq)
 
-			m = hmac.new(self.sslStruct['wMacPtr'], digestmod=sha1)
-			m.update("\x00\x00\x00\x00\x00\x00\x00\x01")
+			m = hmac.new(self.sslStruct['wMacPtr'], 
+				digestmod=sha1)
+			m.update(self.seqNum)
 			m.update("\x17")
 			m.update("\x03")
 			m.update("\x01")
-			m.update(iHash1)
+			m.update(rec_len_packed)
 			m.update(rec)
 			m = m.digest()
-
-			if self.debugFlag == 1:	
-				HexStrDisplay("Final MAC", Str2HexStr(m))
-	
 
 			currentLength = len(rec + m) + 1
 			blockLength = 16
 			pad_len = blockLength -(currentLength % blockLength)
-			print "\r\nCurrentLength mod BlockLength = %d\r\n" % (currentLength % blockLength)
-			if self.debugFlag == 1:
-				print "\nPadding Length: " + str(pad_len)
 			padding = ''
 			for iter in range(0, pad_len + 1):
 				padding = padding + struct.pack('B', pad_len)
 
 			self.sslStruct['recordPlusMAC'] = rec + m + padding
 
-			if self.debugFlag == 1:
-				HexStrDisplay("Record + MAC", 
-				      Str2HexStr(self.sslStruct['recordPlusMAC']))
 
-			from Crypto.Cipher import AES
-			global ciph
-			ciph = AES.new( self.sslStruct['wKeyPtr'], AES.MODE_CBC, self.sslStruct['wIVPtr'] )
-			encryptedData = ciph.encrypt(self.sslStruct['recordPlusMAC'])
+			enc_rec = AES.new( self.sslStruct['wKeyPtr'], 
+				AES.MODE_CBC, self.sslStruct['wIVPtr'] )
+			encryptedData = \
+				enc_rec.encrypt(
+					self.sslStruct['recordPlusMAC'])
 	
-			if self.debugFlag == 1:			
-				HexStrDisplay("Encrypted Record + MAC", 
-					Str2HexStr(encryptedData))
 	
 			packLen = len(encryptedData)
-			self.sslStruct['encryptedRecordPlusMAC'] = tlsAppHeaderDefault + \
+			self.sslStruct['encryptedRecordPlusMAC'] = \
+					tlsAppHeaderDefault + \
 					Pack2Bytes(packLen) + encryptedData
 
-			if self.debugFlag == 1:
-				HexStrDisplay("Packet Sent", 
-					Str2HexStr(self.sslStruct['encryptedRecordPlusMAC']))
-		
 			self.socket.send(
 				self.sslStruct['encryptedRecordPlusMAC'])
 
-			self.sslStruct['wIVPtr'] = encryptedData[len(encryptedData) - 16 :len(encryptedData)]
-			pBanner("Sent SSL Record Packet")
+			self.sslStruct['wIVPtr'] = encryptedData[\
+				len(encryptedData) - 16 :len(encryptedData)]
 
 ##############################################################################
 #
@@ -730,15 +698,11 @@ class LibTLS:
 #			None
 ###############################################################################
 	def ReadCTPacket(self):
-			if self.debugFlag == 1:
-				pBanner("Reading CT Packet")
 			socket = self.socket
 			header = self.socket.recv(5)
 			recLen = HexStr2IntVal(header, 3, 4)
 			data = self.socket.recv(recLen)
-			if self.debugFlag == 1:
-				print str(data)
-				pBanner("Read CT Packet")			
+			self.log(str(data))
 
 ##############################################################################
 #
@@ -754,8 +718,6 @@ class LibTLS:
 #			None
 ###############################################################################
 	def ReadSSLPacket(self):
-			if self.debugFlag == 1:
-				pBanner("Reading SSL Packet")
 			header = self.socket.recv(5)
 			recLen = HexStr2IntVal(header, 3, 4)
 
@@ -765,20 +727,15 @@ class LibTLS:
 				self.opn = 1
 				return
 
-			if self.debugFlag == 1:
-				HexStrDisplay("Encrypted Data", Str2HexStr(data))
-			from Crypto.Cipher import AES
-			global i
-			i = AES.new( self.sslStruct['rKeyPtr'], AES.MODE_CBC, self.sslStruct['rIVPtr'] )
-			decryptedCF = i.decrypt(data)
+			dec_rec = AES.new( self.sslStruct['rKeyPtr'], 
+				AES.MODE_CBC, self.sslStruct['rIVPtr'] )
+			decrypted_data = dec_rec.decrypt(data)
 
 			self.sslStruct['rIVPtr'] = data[recLen - 16: recLen]
-			self.decryptedData = decryptedCF
+			self.decryptedData = decrypted_data
 
-			if self.debugFlag == 1:
-				print "\nPlainText Data:\n" + decryptedCF + "\n"
-				HexStrDisplay("DecryptedData", Str2HexStr(decryptedCF))
-				pBanner("Read SSL Packet")			
+			self.HexStrDisplay("DecryptedData", 
+				Str2HexStr(self.decryptedData))
 
 ##############################################################################
 #
@@ -787,43 +744,44 @@ class LibTLS:
 # 			Function to read ServerFinished Message from server
 #
 # Results:
-#			1. Reads ChangeCipherSpec and ServerFinished Message from server
+#			1. Reads ChangeCipherSpec and ServerFinished Message 
+#				from server
 #			3. Stores necessary values as part of sslStruct
 #
 # Side Effects:
 #			None
 ###############################################################################
 	def ReadSF(self):
-			if self.debugFlag == 1:
-				pBanner("Reading ServerFinished from server")
 			socket = self.socket
 			header = self.socket.recv(5)
 			CFLen = HexStr2IntVal(header, 3, 4)
 			if CFLen == 1:
-				if self.debugFlag == 1:
-					print "\nINFO: Received Server Change Cipher Spec\nLen = " + str(CFLen)
 				cssSer = self.socket.recv(1)
+
 			header = self.socket.recv(5)
 			CFLen = HexStr2IntVal(header, 3, 4)
-			if self.debugFlag == 1:
-				print "\nINFO: Received ServerFinished Message of Length: " + str(CFLen)
 			CFMessage = self.socket.recv(CFLen)
-			if (CFMessage):
-				if self.debugFlag == 1:
-					HexStrDisplay("\nINFO: Finished Read from Server",
-						Str2HexStr(CFMessage))
 
-			from Crypto.Cipher import AES
-			global f
-			f = AES.new( self.sslStruct['rKeyPtr'], AES.MODE_CBC, self.sslStruct['rIVPtr'] )
-			decryptedCF = f.decrypt(CFMessage)
+			dec_hs = AES.new( self.sslStruct['rKeyPtr'], 
+				AES.MODE_CBC, self.sslStruct['rIVPtr'] )
+			decryptedCF = dec_hs.decrypt(CFMessage)
 
 			self.sslStruct['rIVPtr'] = CFMessage[48:64]
-			if self.debugFlag == 1:
-				HexStrDisplay("\nINFO: Decrypted Finished Message from Server", 
-					Str2HexStr(decryptedCF[0:40]))
-				pBanner("Read ServerFinished from server")	
 
+###############################################################################
+#
+# P_hash --
+#
+# 			Function to create a P_Hash 
+#
+# Results:
+#			1. Creates a hash based on secret, seed and 
+#				returns as many bytes as requested
+#				in the length parameter
+#
+# Side Effects:
+#			None
+###############################################################################
 	def P_hash(self, hashModule, secret, seed, length):
 	    	bytes = bytearray(length)
 	    	A = seed
@@ -837,7 +795,18 @@ class LibTLS:
 		    		bytes[index] = c
 		    		index += 1
 	    
-
+###############################################################################
+#
+# PRF --
+#
+# 			Pseudo Random Function 
+#
+# Results:
+#			1. TLS PRF is performed by this function
+#
+# Side Effects:
+#			None
+###############################################################################
 	def PRF(self, secret, label, seed, length):
 	    	#Split the secret into left and right halves
 	    	# which may share a byte if len is odd
@@ -870,14 +839,10 @@ class LibTLS:
 #			None
 ###############################################################################
 	def CreateClientKeyExchange(self):
-		if self.debugFlag == 1:
-			pBanner("Creating ClientKeyExchange")
-
-
 		#
 		# TLS encryption
 		#
-		sCert = open("./files/servercrt.pem").read()
+		sCert = open(serverCert).read()
 		x509 = X509()
 		cert = x509.parse(sCert)
 
@@ -887,26 +852,18 @@ class LibTLS:
 		encDataStr_tls = encData.tostring()
 
 		self.sslStruct['encryptedPMKey'] = encDataStr_tls
-		self.sslStruct['encryptedPMKey_len'] = len(self.sslStruct['encryptedPMKey'])
+		self.sslStruct['encryptedPMKey_len'] = \
+			len(self.sslStruct['encryptedPMKey'])
 
 		self.sslStruct['ckeMessage'] = 	ckeMsgHdr + \
-			Pack3Bytes(self.sslStruct['encryptedPMKey_len'] + 2) + \
-			Pack2Bytes(self.sslStruct['encryptedPMKey_len']) + \
+			Pack3Bytes(
+			self.sslStruct['encryptedPMKey_len'] + 2) + \
+			Pack2Bytes(
+			self.sslStruct['encryptedPMKey_len']) + \
 			self.sslStruct['encryptedPMKey']
 
-		HexStrDisplay("Client Key Exchange", Str2HexStr(self.sslStruct['ckeMessage']))
-
-		if (self.debugFlag == 1):
-			HexStrDisplay("Client KeyExchange Message", 
-				Str2HexStr(self.sslStruct['ckeMessage']))
-			HexStrDisplay("Client Encrypted Pre Master Key", 
-				Str2HexStr(self.sslStruct['encryptedPMKey']))
-			HexStrDisplay("Client ChangeCipherSpec Message", 
-				Str2HexStr(cssPkt))			
 		self.encrypted = 0
 		self.sslHandshake = self.sslStruct['ckeMessage']	
-		if self.debugFlag == 1:
-			pBanner("Created ClientKeyExchange")
 
 ##############################################################################
 #
@@ -923,26 +880,10 @@ class LibTLS:
 ###############################################################################
 
 #
-# master_secret = MD5(premaster_secret + SHA('A' + client_random + 
-#		  server_random + premaster_secret)) +
-#		  MD5(premaster_secret + SHA('BB' + client_random + 
-#		  server_random + premaster_secret)) +
-#		  MD5(premaster_secret + SHA('CCC' + client_random + 
-#		  server_random + premaster_secret))
+# master_secret = PRF(pre-master secret, "master secret", client random, 
+#	server random, 48)
 #
-#
-
 	def CreateMasterSecret(self):
-		if self.debugFlag == 1:
-			pBanner("Creating MasterSecret")
-		
-
-			HexStrDisplay("ClientRandom:", 
-				Str2HexStr(self.sslStruct['cHelloRB']))
-			HexStrDisplay("ServerRandom:", 
-				Str2HexStr(self.sslStruct['sHelloRB']))
-			HexStrDisplay("ckePMKey:", Str2HexStr(ckePMKey))
-
 		self.sslStruct['masterSecret'] = self.PRF(tlsCKEPMKey,
 					"master secret", 
 					self.sslStruct['cHelloRB'] + \
@@ -954,10 +895,6 @@ class LibTLS:
 			master_secret_str += chr(ch)
 
 		self.sslStruct['masterSecret'] = master_secret_str
-		if self.debugFlag == 1:
-			HexStrDisplay("MasterSecret", 
-				Str2HexStr(self.sslStruct['masterSecret']))
-			pBanner("Created MasterSecret")
 
 
 ##############################################################################
@@ -975,41 +912,20 @@ class LibTLS:
 ###############################################################################
 
 #
-#   ClientFinishedMessage = md5_hash + sha1_Hash
+#   ClientFinishedMessage = md5Hash + sha1Hash
 #
-#    			    md5_hash = MD5(master_secret + pad2md5 + 
-#			    MD5(handshake_messages + Sender + master_secret + 
-#			    pad1md5));
+#			    md5Hash = MD5(handshake_messages)
 #			
-#			    sha1_hash =  SHA(master_secret + pad2sha +
-#			    SHA(handshake_messages + Sender + master_secret + 
-#			    pad1sha));
+#			    shaHash = SHA(handshake_messages)
 #
 	def CreateFinishedHash(self):
-		if self.debugFlag == 1:
-			pBanner("Creating Finished Hash")
-	
-
-			HexStrDisplay("ClientHello", Str2HexStr(self.sslStruct['cHello']))
-			HexStrDisplay("ServerHello", Str2HexStr(self.sslStruct['sHello']))
-			HexStrDisplay("Server Certificate", 
-				Str2HexStr(self.sslStruct['sCertificateCF']))
-			HexStrDisplay("Server Hello Done", 
-				Str2HexStr(self.sslStruct['sHelloDone']))
-			HexStrDisplay("Client Key Exchange", 
-				Str2HexStr(self.sslStruct['ckeMessage']))
-			HexStrDisplay("Master Secret", 
-				Str2HexStr(self.sslStruct['masterSecret']))
-
-		
-
 		m1 = md5()
 		m1.update(self.sslStruct['cHello'])
 		m1.update(self.sslStruct['sHello'])
 		m1.update(self.sslStruct['sCertificateCF'])
 		m1.update(self.sslStruct['sHelloDone'])
 		m1.update(self.sslStruct['ckeMessage'])
-		md5Hash = m1.digest()
+		self.md5Hash = m1.digest()
 	
 
 		s1 = sha1()
@@ -1018,12 +934,12 @@ class LibTLS:
 		s1.update(self.sslStruct['sCertificateCF'])
 		s1.update(self.sslStruct['sHelloDone'])
 		s1.update(self.sslStruct['ckeMessage'])
-		shaHash = s1.digest()
+		self.shaHash = s1.digest()
 		
 
 		cFinished = self.PRF(self.sslStruct['masterSecret'], 
 			'client finished',
-			md5Hash + shaHash, 12)
+			self.md5Hash + self.shaHash, 12)
 
 		cFinished_str = str(cFinished)
 		cfLen = len(cFinished_str)
@@ -1033,14 +949,6 @@ class LibTLS:
 					cFinished_str
 
 
-		if self.debugFlag == 1:
-			HexStrDisplay("MD5 Hash", Str2HexStr(md5Hash))
-			HexStrDisplay("SHA Hash", Str2HexStr(shaHash))
-
-			HexStrDisplay("ClientFinished Message", 
-				Str2HexStr(self.sslStruct['cFinished']))
-
-			pBanner("Created Finished Hash")
 
 ##############################################################################
 #
@@ -1058,19 +966,10 @@ class LibTLS:
 
 # 
 # key_block =
-#	  MD5(master_secret + SHA('A' + master_secret + ServerHello.random +
-#		  ClientHello.random)) +
-#	  MD5(master_secret + SHA('BB' + master_secret + ServerHello.random +
-#		  ClientHello.random)) +
-#	  MD5(master_secret + SHA('CCC' + master_secret + ServerHello.random +
-#		  ClientHello.random)) + [...];
+#	  PRF(master_secret + 'key expansion', client random + server random)
 #
 
 	def CreateKeyBlock(self):
-		if self.debugFlag == 1:
-			pBanner("Creating Key Block")
-		
-
 		self.sslStruct['digLen'] = 16
 		self.sslStruct['keyBits'] = 128
 		self.sslStruct['blockBits'] = 0
@@ -1079,15 +978,17 @@ class LibTLS:
 		self.sslStruct['keySize'] = self.sslStruct['keyBits'] / 8
 		self.sslStruct['writeSeq'] = 0
 		self.sslStruct['readSeq'] = 0
-		self.sslStruct['reqKeyLen'] = 	2 * self.sslStruct['macSize'] + \
-						2 * self.sslStruct['keySize'] + \
-						2 * self.sslStruct['ivSize']
+		self.sslStruct['reqKeyLen'] = 2 * self.sslStruct['macSize'] + \
+					2 * self.sslStruct['keySize'] + \
+					2 * self.sslStruct['ivSize']
 		self.sslStruct['keyIter'] = 9
 		self.sslStruct['keyBlock'] = ""
 
 
 		seed = self.sslStruct['sHelloRB'] + self.sslStruct['cHelloRB']
-		self.sslStruct['keyBlock'] = self.PRF(self.sslStruct['masterSecret'], 'key expansion', seed, 104)
+		self.sslStruct['keyBlock'] = \
+		self.PRF(self.sslStruct['masterSecret'], 
+			'key expansion', seed, 104)
 
 
 		keyBlock_str = ""
@@ -1104,14 +1005,27 @@ class LibTLS:
 		self.sslStruct['wIVPtr'] = self.sslStruct['keyBlock'][72:88]
 		self.sslStruct['rIVPtr'] = self.sslStruct['keyBlock'][88:104]
 
+
+	def pBanner(self, string):
 		if self.debugFlag == 1:
-			HexStrDisplay("Key Block", Str2HexStr(self.sslStruct['keyBlock']))
-			HexStrDisplay("wMacPtr", Str2HexStr(self.sslStruct['wMacPtr']))
-			HexStrDisplay("rMacPtr", Str2HexStr(self.sslStruct['rMacPtr']))
-			HexStrDisplay("wKeyPtr", Str2HexStr(self.sslStruct['wKeyPtr']))
-			HexStrDisplay("rKeyPtr", Str2HexStr(self.sslStruct['rKeyPtr']))
-			HexStrDisplay("wIVPtr", Str2HexStr(self.sslStruct['wIVPtr']))
-			HexStrDisplay("rIVPtr", Str2HexStr(self.sslStruct['rIVPtr']))
+			sys.stdout.write("\n### INFO: %s ###\n" % (string))
+			
+	def HexStrDisplay(self, label, string):
+		if self.debugFlag == 1:
+			sys.stdout.write("\n%s:\n" % (label))
+			strList = string.rsplit('0x')
+			chNum = 1
+			for item in strList[1:]:
+				sys.stdout.write(rjust(item, 3, '0'))
+				if (chNum == 8):
+					sys.stdout.write('-')
+				if (chNum == 16):
+					sys.stdout.write('\n')
+					chNum = 0
+				chNum += 1
 
-			pBanner("Created Key Block")
-
+	def log(self, data):
+		if self.debugFlag == 1:
+			self.comm.logger.toboth(data)
+		else:
+			self.comm.logger.tofile(data)

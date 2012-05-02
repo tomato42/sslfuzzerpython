@@ -181,6 +181,7 @@ cipherSuiteList = {
     156 : "TLS_DH_anon_WITH_CAMELLIA_256_CBC_SHA256",
     157 : "TLS_EMPTY_RENEGOTIATION_INFO_SCSV",}
 
+serverCert = "files/servercrt.pem"
 sslRecVersionDefault = '\x03\x00'
 tlsRecVersionDefault = "\x03\x01"
 sslRecHeaderDeafult = '\x16' + sslRecVersionDefault
