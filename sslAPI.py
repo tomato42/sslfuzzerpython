@@ -52,6 +52,7 @@ class LibSSL:
 		self.sslHandshake = None
 		self.sslRecord = None
 		self.opn = 0
+		self.cipher = self.comm.cipher
 
 ###############################################################################
 #
@@ -178,13 +179,13 @@ class LibSSL:
 # Side Effects:
 #			None
 ###############################################################################
-	def CreateClientHello(self, cipher = None):
+	def CreateClientHello(self):
 		if self.comm.config.get_value(
 			"client_hello_hs_cipher_suites") == "DECIDE":
-	                if cipher != None:
+	                if self.cipher != None:
         	                self.set_value(
 					"client_hello_hs_cipher_suites",
-                	                cipher)
+                	                self.cipher)
 				self.set_type(
 					"client_hello_hs_cipher_suites",
 					">H")
@@ -198,7 +199,7 @@ class LibSSL:
 			else:
 				self.set_value(
 					"client_hello_hs_cipher_suites", 
-					DEFAULT_CH_CIPHER_SUITES)
+					self.cipher)
 				self.set_type(
 					"client_hello_hs_cipher_suites", 
 					">H")
@@ -212,7 +213,7 @@ class LibSSL:
 
 			if self.comm.config.get_value(
 				"client_hello_hs_cipher_suites_len") == "DECIDE":
-				if cipher != None:
+				if self.cipher != None:
 	                                self.set_value(
 					"client_hello_hs_cipher_suites_len", 
 					2)
@@ -222,7 +223,7 @@ class LibSSL:
 				else:
 					self.set_value(
 						"client_hello_hs_cipher_suites_len",
-						len(DEFAULT_CH_CIPHER_SUITES))
+						len(self.cipher))
 					self.set_type(
 						"client_hello_hs_cipher_suites_len", 
 						">H")
@@ -522,7 +523,7 @@ class LibSSL:
 	def SendCTPacket(self):
 		recMsg = 	sslRecHeaderDeafult  + \
 				Pack2Bytes(len(self.sslHandshake))
-	
+
 		self.sslRecord = recMsg + self.sslHandshake
 		
 		try:
@@ -605,7 +606,8 @@ class LibSSL:
 
 			self.socket.send(
 				self.sslStruct['encryptedRecordPlusMAC'])
-			self.sslStruct['wIVPtr'] = encryptedData[48:64]
+			self.sslStruct['wIVPtr'] = encryptedData[\
+				len(encryptedData) - 16 :len(encryptedData)]
 
 
 ##############################################################################
@@ -938,17 +940,6 @@ class LibSSL:
 #
 
 	def CreateKeyBlock(self):
-		self.sslStruct['digLen'] = 16
-		self.sslStruct['keyBits'] = 128
-		self.sslStruct['blockBits'] = 0
-		self.sslStruct['ivSize'] = 0
-		self.sslStruct['macSize'] = self.sslStruct['digLen']
-		self.sslStruct['keySize'] = self.sslStruct['keyBits'] / 8
-		self.sslStruct['writeSeq'] = 0
-		self.sslStruct['readSeq'] = 0
-		self.sslStruct['reqKeyLen'] = 	2 * self.sslStruct['macSize'] + \
-						2 * self.sslStruct['keySize'] + \
-						2 * self.sslStruct['ivSize']
 		self.sslStruct['keyIter'] = 9
 		self.sslStruct['keyBlock'] = ""
 
@@ -970,14 +961,49 @@ class LibSSL:
 							mFin
 
 
+		if self.cipher == "\x00\x2F":
+			self.sslStruct['macSize'] = 20
+			self.sslStruct['keyBits'] = 128
+			self.sslStruct['keySize'] = \
+				self.sslStruct['keyBits'] / 8
+			self.sslStruct['ivSize'] = 16
+		elif self.cipher == "\x00\x35":
+			self.sslStruct['macSize'] = 20
+			self.sslStruct['keyBits'] = 256
+			self.sslStruct['keySize'] = \
+				self.sslStruct['keyBits'] / 8
+			self.sslStruct['ivSize'] = 16
+			
+		macSize = self.sslStruct['macSize']
+		keySize = self.sslStruct['keySize']
+		ivSize = self.sslStruct['ivSize']
 
-	
-		self.sslStruct['wMacPtr'] = self.sslStruct['keyBlock'][0:20]
-		self.sslStruct['rMacPtr'] = self.sslStruct['keyBlock'][20:40]
-		self.sslStruct['wKeyPtr'] = self.sslStruct['keyBlock'][40:56]
-		self.sslStruct['rKeyPtr'] = self.sslStruct['keyBlock'][56:72]
-		self.sslStruct['wIVPtr'] = self.sslStruct['keyBlock'][72:88]
-		self.sslStruct['rIVPtr'] = self.sslStruct['keyBlock'][88:104]
+
+		print "%d:%d" % (0, macSize)
+		print "%d:%d" % (macSize, macSize * 2)
+		print "%d:%d" % (2 * macSize, 2 * macSize + keySize)
+		print "%d:%d" % (2 * macSize + keySize, 2 * macSize + 2 * keySize)
+		print "%d:%d" % (2 * macSize + 2 * keySize, 2 * macSize + \
+				2 * keySize + ivSize)
+		print "%d:%d" % (2 * macSize + \
+				2 * keySize + ivSize, 2 * macSize + \
+				2 * keySize + 2 * ivSize)
+
+		self.sslStruct['wMacPtr'] = self.sslStruct['keyBlock']\
+			[0:macSize]
+		self.sslStruct['rMacPtr'] = self.sslStruct['keyBlock']\
+			[macSize:macSize * 2]
+		self.sslStruct['wKeyPtr'] = self.sslStruct['keyBlock']\
+			[2 * macSize: 2 * macSize + keySize]
+		self.sslStruct['rKeyPtr'] = self.sslStruct['keyBlock']\
+			[2 * macSize + keySize: 2 * macSize + 2 * keySize]
+		self.sslStruct['wIVPtr'] = self.sslStruct['keyBlock']\
+			[2 * macSize + 2 * keySize: 2 * macSize + \
+				2 * keySize + ivSize]
+		self.sslStruct['rIVPtr'] = self.sslStruct['keyBlock']\
+			[2 * macSize + \
+				2 * keySize + ivSize: 2 * macSize + \
+				2 * keySize + 2 * ivSize]
 
 	def pBanner(self, string):
 		if self.debugFlag == 1:

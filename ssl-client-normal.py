@@ -16,15 +16,16 @@ def usage():
 --log|-l <log file> \r\n \
 --ca|-a <CA File + cert file in PEM format> \r\n \
 --debug|-d \r\n \
+--cipher|-x \r\n \
 "
 
-host = port = test_case = rng = value = seq = sof = config_file = log_file = comm = ca_file = None
+host = port = test_case = rng = value = seq = sof = config_file = cipher_value = log_file = comm = ca_file = cipher = None
 spaces = "                 "
 debugFlag = 0
 
 try:
-	opts, args = getopt.getopt(sys.argv[1:], "ho:p:c:l:a:fd", 
-		["help", "host=", "port=", "config=", "log=", "ca=", "startonfail=", "debug="])
+	opts, args = getopt.getopt(sys.argv[1:], "ho:p:c:l:a:fdx:", 
+		["help", "host=", "port=", "config=", "log=", "ca=", "startonfail=", "debug=", "cipher="])
 except getopt.GetoptError, err:
         print str(err) # will print something like "option -a not recognized"
         usage()
@@ -48,8 +49,21 @@ for o, a in opts:
 		sof = a
 	elif o in ("-d", "--debug"):
 		debugFlag = 1
+	elif o in ("-x", "--cipher"):
+		cipher = a
+		print cipher
 	else:
 		print "Invalid arguments supplied"
+
+if cipher == "AES-256-SHA":
+	cipher_value = "\x00\x35"
+
+if cipher == "AES-128-SHA":
+	cipher_value = "\x00\x2F"
+
+if cipher == None:
+	cipher = DEFAULT_CH_CIPHER_SUITES_NAME
+	cipher_value = DEFAULT_CH_CIPHER_SUITES_VALUE
 
 if (host == None) or (port == None) or (config_file == None):
 	usage()
@@ -81,7 +95,7 @@ if config.valid_lines == 0:
 	logger.toboth("No valid lines in config file")
 	sys.exit(1)
 
-common = common(logger, host, port, config, ca=ca_file)
+common = common(logger, host, port, config, ca=ca_file, cipher=cipher_value)
 ssl_config_obj_list = copy.deepcopy(config.config_obj_list)
 sLib = LibSSL(debugFlag, config_obj_list = ssl_config_obj_list, comm = common)
 populate_random_numbers(common, sLib)
@@ -89,7 +103,7 @@ populate_random_numbers(common, sLib)
 logger.toboth("starting SSL handshake")
 sLib.TCPConnect()
 sLib.log("Creating ClientHello")
-sLib.CreateClientHello(cipher=None)
+sLib.CreateClientHello()
 sLib.log("Length of ClientHello:%s\n" % \
 	str(len(sLib.sslStruct['cHello'])))
 
@@ -135,6 +149,8 @@ sLib.log("Creating client key exchange")
 sLib.CreateClientKeyExchange()
 sLib.HexStrDisplay("Client KeyExchange Message", 
 	Str2HexStr(sLib.sslStruct['ckeMessage']))
+sLib.HexStrDisplay("Client KeyExchange Message Record", 
+	Str2HexStr(sLib.sslRecord))
 sLib.HexStrDisplay("Client Encrypted Pre Master Key", 
 	Str2HexStr(sLib.sslStruct['encryptedPMKey']))
 sLib.HexStrDisplay("Client ChangeCipherSpec Message", 
@@ -144,7 +160,7 @@ sLib.log("sending ClientKeyExchange")
 sLib.SendCTPacket()
 
 sLib.log("sending CSS packet")
-sLib.socket.send(tlsCSSPkt)
+sLib.socket.send(cssPkt)
 if sLib.opn == 1:
 	logger.toboth("Server did not respond properly")
 	sys.exit(1)

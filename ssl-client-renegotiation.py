@@ -1,4 +1,4 @@
-from sslFuzzer import *
+from sslAPI import *
 from sFunctions import *
 from tlslite.api import *
 from config import *
@@ -14,14 +14,18 @@ def usage():
 --port=|-p <port number> \r\n \
 --config|-c <config file> \r\n \
 --log|-l <log file> \r\n \
+--ca|-a <CA File + cert file in PEM format> \r\n \
+--debug|-d \r\n \
+--cipher|-x \r\n \
 "
 
-host = port = test_case = rng = value = seq = sof = config_file = log_file = comm = None
+host = port = test_case = rng = value = seq = sof = config_file = cipher_value = log_file = comm = ca_file = cipher = None
 spaces = "                 "
+debugFlag = 0
 
 try:
-	opts, args = getopt.getopt(sys.argv[1:], "ho:p:c:l:f", 
-		["help", "host=", "port=", "config=", "log=", "startonfail="])
+	opts, args = getopt.getopt(sys.argv[1:], "ho:p:c:l:a:fdx:", 
+		["help", "host=", "port=", "config=", "log=", "ca=", "startonfail=", "debug=", "cipher="])
 except getopt.GetoptError, err:
         print str(err) # will print something like "option -a not recognized"
         usage()
@@ -39,10 +43,27 @@ for o, a in opts:
 		config_file = a
 	elif o in ("-l", "--log"):
 		log_file = a
+	elif o in ("-a", "--ca"):
+		ca_file = a
 	elif o in ("-f", "--startonfail"):
 		sof = a
+	elif o in ("-d", "--debug"):
+		debugFlag = 1
+	elif o in ("-x", "--cipher"):
+		cipher = a
+		print cipher
 	else:
 		print "Invalid arguments supplied"
+
+if cipher == "AES-256-SHA":
+	cipher_value = "\x00\x35"
+
+if cipher == "AES-128-SHA":
+	cipher_value = "\x00\x2F"
+
+if cipher == None:
+	cipher = DEFAULT_CH_CIPHER_SUITES_NAME
+	cipher_value = DEFAULT_CH_CIPHER_SUITES_VALUE
 
 if (host == None) or (port == None) or (config_file == None):
 	usage()
@@ -74,9 +95,9 @@ if config.valid_lines == 0:
 	logger.toboth("No valid lines in config file")
 	sys.exit(1)
 
-common = common(logger, host, port, config)
+common = common(logger, host, port, config, ca=ca_file, cipher=cipher_value)
 ssl_config_obj_list = copy.deepcopy(config.config_obj_list)
-sLib = LibSSL(debugFlag = 0, config_obj_list = ssl_config_obj_list, comm = common)
+sLib = LibSSL(debugFlag, config_obj_list = ssl_config_obj_list, comm = common)
 populate_random_numbers(common, sLib)
 
 sLib.TCPConnect()
