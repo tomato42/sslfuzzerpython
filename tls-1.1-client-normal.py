@@ -1,4 +1,4 @@
-from tlsAPI import *
+from tls1_1API import *
 from sslAPI import *
 from sFunctions import *
 from tlslite.api import *
@@ -159,7 +159,7 @@ sLib.log("sending ClientKeyExchange")
 sLib.SendCTPacket()
 
 sLib.log("sending CSS packet")
-sLib.socket.send(tlsCSSPkt)
+sLib.socket.send(tls11CSSPkt)
 if sLib.opn == 1:
 	logger.toboth("Server did not respond properly")
 	sys.exit(1)
