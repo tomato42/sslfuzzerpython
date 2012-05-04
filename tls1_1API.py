@@ -579,7 +579,22 @@ class LibTLS:
 			m.update(rec)
 			m = m.digest()
 
-
+			#
+			# As per 6.2.3.2 (2)(a) in the link below:
+			#  http://rfc-ref.org/RFC-TEXTS/4346/chapter6.html
+			#
+			# Data to be encrypted = R ^ mask + Plain text
+			#
+			# Mask is set to 0, hence 
+			#
+			# Data to be encrypted = R + Plain text
+			# 
+			# where, 
+			#  R = A random string of length == block length
+			#
+			# IV used for encryption is the calculated IV during
+			# 	key block creation
+			#
 			self.HexStrDisplay("Final MAC", Str2HexStr(m))
 	
 			currentLength = len(rec + m) + 1
@@ -600,7 +615,7 @@ class LibTLS:
 			self.HexStrDisplay("Padding", Str2HexStr(padding))
 			
 			self.sslStruct['recordPlusMAC'] = \
-				initIV + rec + m + padding
+				R + rec + m + padding
 			self.HexStrDisplay("Final Packet", Str2HexStr(
 				self.sslStruct['recordPlusMAC']))
 	
@@ -628,6 +643,8 @@ enc_hs_wo_reneg.encrypt(self.sslStruct['recordPlusMAC'])
 			self.socket.send(
 				self.sslStruct['encryptedRecordPlusMAC'])
 
+
+
 ##############################################################################
 #
 # SendRecordPacket --
@@ -650,17 +667,34 @@ enc_hs_wo_reneg.encrypt(self.sslStruct['recordPlusMAC'])
 
 			self.seqNum = pack('>Q', seq)
 
+			self.HexStrDisplay("seq Num", Str2HexStr(self.seqNum))
+
 			m = hmac.new(self.sslStruct['wMacPtr'], 
 				digestmod=sha1)
 			m.update(self.seqNum)
-			m.update("\x17")
+			m.update("\x16")
 			m.update("\x03")
 			m.update("\x02")
 			m.update(rec_len_packed)
 			m.update(rec)
 			m = m.digest()
 
-
+			#
+			# As per 6.2.3.2 (2)(a) in the link below:
+			#  http://rfc-ref.org/RFC-TEXTS/4346/chapter6.html
+			#
+			# Data to be encrypted = R ^ mask + Plain text
+			#
+			# Mask is set to 0, hence 
+			#
+			# Data to be encrypted = R + Plain text
+			# 
+			# where, 
+			#  R = A random string of length == block length
+			#
+			# IV used for encryption is the calculated IV during
+			# 	key block creation
+			#
 			self.HexStrDisplay("Final MAC", Str2HexStr(m))
 	
 			currentLength = len(rec + m) + 1
@@ -681,26 +715,24 @@ enc_hs_wo_reneg.encrypt(self.sslStruct['recordPlusMAC'])
 			self.HexStrDisplay("Padding", Str2HexStr(padding))
 			
 			self.sslStruct['recordPlusMAC'] = \
-				initIV + rec + m + padding
+				R + rec + m + padding
 			self.HexStrDisplay("Final Packet", Str2HexStr(
 				self.sslStruct['recordPlusMAC']))
 	
-			enc_rec = \
-AES.new( self.sslStruct['wKeyPtr'], AES.MODE_CBC, initIV)
+			enc_rec = AES.new( self.sslStruct['wKeyPtr'], AES.MODE_CBC, self.sslStruct['wIVPtr'])
 			encryptedData = \
 enc_rec.encrypt(self.sslStruct['recordPlusMAC'])
 
 			packLen = len(encryptedData)
 
 			self.sslStruct['encryptedRecordPlusMAC'] = \
-				tls11RecHeaderDefault + \
+				tls11AppHeaderDefault + \
 				Pack2Bytes(packLen) + encryptedData
 			self.HexStrDisplay("Encrypted Packet",
 				Str2HexStr(self.sslStruct['encryptedRecordPlusMAC']))
 			
 			self.socket.send(
 				self.sslStruct['encryptedRecordPlusMAC'])
-
 
 ##############################################################################
 #
@@ -746,7 +778,7 @@ enc_rec.encrypt(self.sslStruct['recordPlusMAC'])
 				return
 
 			dec_rec = AES.new( self.sslStruct['rKeyPtr'], 
-				AES.MODE_CBC, initIV )
+				AES.MODE_CBC, self.sslStruct['rIVPtr'] )
 			decrypted_data = dec_rec.decrypt(data)
 
 			self.decryptedData = decrypted_data

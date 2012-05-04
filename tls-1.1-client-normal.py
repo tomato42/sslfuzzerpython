@@ -217,7 +217,7 @@ sLib.ReadSF()
 sLib.log("Read server finished")
 logger.toboth("TLS handshake completed")
 
-req1 = "GET /test.txt HTTP/1.1\r\n\r\n"
+req1 = "GET / HTTP/1.1\r\n\r\n"
 
 sLib.log("Sending data")
 sLib.HexStrDisplay("Data", Str2HexStr(req1))
