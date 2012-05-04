@@ -575,7 +575,7 @@ class LibTLS:
 
 			self.seqNum = pack('>Q', seq)
 
-			m = hmac.new(initIV, 
+			m = hmac.new(self.sslStruct['wMacPtr'], 
 				digestmod=sha1)
 			m.update(self.seqNum)
 			m.update("\x16")
@@ -585,12 +585,16 @@ class LibTLS:
 			m.update(rec)
 			m = m.digest()
 
+
 			self.HexStrDisplay("Final MAC", Str2HexStr(m))
 	
 			currentLength = len(rec + m) + 1
 			blockLength = 16
 			pad_len = blockLength - \
 				(currentLength % blockLength)
+
+			if pad_len == blockLength:
+				pad_len = 0
 
 			self.log("Padding Length: %s" % (str(pad_len)))
 
@@ -602,19 +606,19 @@ class LibTLS:
 			self.HexStrDisplay("Padding", Str2HexStr(padding))
 			
 			self.sslStruct['recordPlusMAC'] = \
-				initIV + rec1 + m + padding
+				initIV + rec + m + padding
 			self.HexStrDisplay("Final Packet", Str2HexStr(
 				self.sslStruct['recordPlusMAC']))
 	
 			if renegotiate == 1:
 				enc_hs_with_reneg = \
-AES.new( self.sslStruct['wKeyPtr'], AES.MODE_CBC, self.sslStruct['wKeyPtr'])
+AES.new( self.sslStruct['wKeyPtr'], AES.MODE_CBC, self.sslStruct['wIVPtr'])
 				encryptedData = \
 enc_hs_with_reneg.encrypt(self.sslStruct['recordPlusMAC'])
 
 			if renegotiate == 0:
 				enc_hs_wo_reneg = \
-AES.new( self.sslStruct['wKeyPtr'], AES.MODE_CBC, self.sslStruct['wKeyPtr'] )
+AES.new( self.sslStruct['wKeyPtr'], AES.MODE_CBC, self.sslStruct['wIVPtr'] )
 				encryptedData = \
 enc_hs_wo_reneg.encrypt(self.sslStruct['recordPlusMAC'])
 
