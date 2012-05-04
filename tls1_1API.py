@@ -672,7 +672,7 @@ enc_hs_wo_reneg.encrypt(self.sslStruct['recordPlusMAC'])
 			m = hmac.new(self.sslStruct['wMacPtr'], 
 				digestmod=sha1)
 			m.update(self.seqNum)
-			m.update("\x16")
+			m.update("\x17")
 			m.update("\x03")
 			m.update("\x02")
 			m.update(rec_len_packed)
@@ -698,7 +698,7 @@ enc_hs_wo_reneg.encrypt(self.sslStruct['recordPlusMAC'])
 			self.HexStrDisplay("Final MAC", Str2HexStr(m))
 	
 			currentLength = len(rec + m) + 1
-			blockLength = 16
+			blockLength = len(self.sslStruct['wIVPtr'])
 			pad_len = blockLength - \
 				(currentLength % blockLength)
 
