@@ -567,12 +567,6 @@ class LibTLS:
 			recLen = len(rec)
 			rec_len_packed = pack('>H', recLen)
 
-			initIV = "\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02"
-
-			rec1 = ""
-			for index in range(0, len(rec)):
-				rec1 = rec1 + chr(ord(rec[index]) ^ ord(initIV[index]))
-
 			self.seqNum = pack('>Q', seq)
 
 			m = hmac.new(self.sslStruct['wMacPtr'], 
@@ -650,10 +644,8 @@ enc_hs_wo_reneg.encrypt(self.sslStruct['recordPlusMAC'])
 #			None
 ###############################################################################
 	def SendRecordPacket(self, recMsg, seq):
-			self.log("Sending SSL Record Packet")
-
 			rec = recMsg
-			recLen = len(recMsg)
+			recLen = len(rec)
 			rec_len_packed = pack('>H', recLen)
 
 			self.seqNum = pack('>Q', seq)
@@ -668,30 +660,47 @@ enc_hs_wo_reneg.encrypt(self.sslStruct['recordPlusMAC'])
 			m.update(rec)
 			m = m.digest()
 
+
+			self.HexStrDisplay("Final MAC", Str2HexStr(m))
+	
 			currentLength = len(rec + m) + 1
 			blockLength = 16
-			pad_len = blockLength -(currentLength % blockLength)
+			pad_len = blockLength - \
+				(currentLength % blockLength)
+
+			if pad_len == blockLength:
+				pad_len = 0
+
+			self.log("Padding Length: %s" % (str(pad_len)))
+
 			padding = ''
 			for iter in range(0, pad_len + 1):
-				padding = padding + struct.pack('B', pad_len)
+				padding = padding + \
+				struct.pack('B', pad_len)
 
-			self.sslStruct['recordPlusMAC'] = rec + m + padding
-
-
-			enc_rec = AES.new( self.sslStruct['wKeyPtr'], 
-				AES.MODE_CBC, self.sslStruct['wIVPtr'] )
+			self.HexStrDisplay("Padding", Str2HexStr(padding))
+			
+			self.sslStruct['recordPlusMAC'] = \
+				initIV + rec + m + padding
+			self.HexStrDisplay("Final Packet", Str2HexStr(
+				self.sslStruct['recordPlusMAC']))
+	
+			enc_rec = \
+AES.new( self.sslStruct['wKeyPtr'], AES.MODE_CBC, initIV)
 			encryptedData = \
-				enc_rec.encrypt(
-					self.sslStruct['recordPlusMAC'])
-	
-	
-			packLen = len(encryptedData)
-			self.sslStruct['encryptedRecordPlusMAC'] = \
-					tls11AppHeaderDefault + \
-					Pack2Bytes(packLen) + encryptedData
+enc_rec.encrypt(self.sslStruct['recordPlusMAC'])
 
+			packLen = len(encryptedData)
+
+			self.sslStruct['encryptedRecordPlusMAC'] = \
+				tls11RecHeaderDefault + \
+				Pack2Bytes(packLen) + encryptedData
+			self.HexStrDisplay("Encrypted Packet",
+				Str2HexStr(self.sslStruct['encryptedRecordPlusMAC']))
+			
 			self.socket.send(
 				self.sslStruct['encryptedRecordPlusMAC'])
+
 
 ##############################################################################
 #
@@ -737,7 +746,7 @@ enc_hs_wo_reneg.encrypt(self.sslStruct['recordPlusMAC'])
 				return
 
 			dec_rec = AES.new( self.sslStruct['rKeyPtr'], 
-				AES.MODE_CBC, self.sslStruct['rIVPtr'] )
+				AES.MODE_CBC, initIV )
 			decrypted_data = dec_rec.decrypt(data)
 
 			self.decryptedData = decrypted_data
