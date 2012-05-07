@@ -128,16 +128,16 @@ sLib.CreateMasterSecret()
 sLib.CreateFinishedHash()
 sLib.CreateKeyBlock()
 if sLib.debugFlag == 1:
-	HexStrDisplay("WIV ", Str2HexStr(sLib.sslStruct['wIVPtr']))
-	HexStrDisplay("RIV ", Str2HexStr(sLib.sslStruct['rIVPtr']))
+	sLib.HexStrDisplay("WIV ", Str2HexStr(sLib.sslStruct['wIVPtr']))
+	sLib.HexStrDisplay("RIV ", Str2HexStr(sLib.sslStruct['rIVPtr']))
 sLib.SendSSLPacket(sLib.sslStruct['cFinished'], 0, 0)
 if sLib.debugFlag == 1:
-	HexStrDisplay("WIV ", Str2HexStr(sLib.sslStruct['wIVPtr']))
-	HexStrDisplay("RIV ", Str2HexStr(sLib.sslStruct['rIVPtr']))
+	sLib.HexStrDisplay("WIV ", Str2HexStr(sLib.sslStruct['wIVPtr']))
+	sLib.HexStrDisplay("RIV ", Str2HexStr(sLib.sslStruct['rIVPtr']))
 sLib.ReadSF()
 if sLib.debugFlag == 1:
-	HexStrDisplay("WIV ", Str2HexStr(sLib.sslStruct['wIVPtr']))
-	HexStrDisplay("RIV ", Str2HexStr(sLib.sslStruct['rIVPtr']))
+	sLib.HexStrDisplay("WIV ", Str2HexStr(sLib.sslStruct['wIVPtr']))
+	sLib.HexStrDisplay("RIV ", Str2HexStr(sLib.sslStruct['rIVPtr']))
 
 sLib.SendSSLPacket(sLib.sslStruct['cHello'], 1, 1)
 try:
