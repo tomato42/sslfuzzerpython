@@ -728,6 +728,9 @@ encryptedData[len(encryptedData) - 16 :len(encryptedData)]
 				self.opn = 1
 				return
 
+			self.encHeader = header
+			self.encData = data
+
 			dec_rec = AES.new( self.sslStruct['rKeyPtr'], 
 				AES.MODE_CBC, self.sslStruct['rIVPtr'] )
 			decrypted_data = dec_rec.decrypt(data)
